@@ -1,0 +1,9 @@
+gym==0.18.3
+PyOpenGL==3.1.5
+tqdm
+PILLOW
+opencv-python
+pyglet
+numba
+numpy
+scipy
