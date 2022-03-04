@@ -86,6 +86,8 @@ class Renderer(Window):
         self.label = pyglet.text.Label('', font_name='Arial', font_size=18,
             x=10, y=self.height - 10, anchor_x='left', anchor_y='top',
             color=(0, 0, 0, 255))
+        # import pdb
+        # pdb.set_trace()
         self.model._initialize()
 
     def set_2d(self):
@@ -152,7 +154,7 @@ class Renderer(Window):
             .get_data()
         ).reshape((width, height, 4))[::-1]
 
-    def add_block(self, position, texture_id):
+    def add_block(self, position, texture_id, **kwargs):
         x, y, z = position
         texture = id2texture[texture_id]
         vertex_data = cube_vertices(x, y, z, 0.5)
@@ -166,8 +168,9 @@ class Renderer(Window):
             ('n3f/static', normal_data)
         )
     
-    def remove_block(self, position):
-        self._shown.pop(position).delete()
+    def remove_block(self, position, **kwargs):
+        if position in self._shown:
+            self._shown.pop(position).delete()
 
     def draw_focused_block(self):
         """ Draw black edges around the block that is currently under the

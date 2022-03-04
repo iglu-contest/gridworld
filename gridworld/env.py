@@ -40,12 +40,15 @@ class GridWorld(Env):
             })
             self.parse = self.parse_action
         self.observation_space = {
-            'agentPos': Box(low=-1000, high=1000, shape=(5,)),
+            'agentPos': Box(
+                low=np.array([-8, -2, -8, -90, 0], dtype=np.float32), 
+                high=np.array([8, 12, 8, 90, 360], dtype=np.float32), 
+                shape=(5,)),
             'inventory': Box(low=0, high=20, shape=(6,)),
             'grid': Box(low=-1, high=7, shape=(9, 11, 11))
         }
         if render:
-            self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3))
+            self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         self.observation_space = Dict(self.observation_space)
         self.max_int = 0
         self.do_render = render
@@ -59,17 +62,36 @@ class GridWorld(Env):
             self.world._initialize()
         self.reset()
 
-    def add_block(self, position, kind ):
-        if self.world.initialized:
+    def enable_renderer(self):
+        if self.renderer is None:
+            self.reset()
+            self.world.deinit()
+            self.renderer = Renderer(self.world, self.agent,
+                                     width=64, height=64, 
+                                     caption='Pyglet', resizable=False)
+            setup()
+            self.do_render = True
+            # self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+
+    def add_block(self, position, kind, build_zone=True):
+        if self.world.initialized and build_zone:
             x, y, z = position
             x += 5
             z += 5
             y += 1
             self.grid[y, x, z] = kind
 
-    def remove_block(self, position):
-        if self.world.initialized:
+    def remove_block(self, position, build_zone=True):
+        if self.world.initialized and build_zone:
+            # import pdb
+            # pdb.set_trace()
             x, y, z = position
+            x += 5
+            z += 5
+            y += 1
+            if self.grid[y, x, z] == 0:
+                raise ValueError(f'Removal of non-existing block. address: y={y}, x={x}, z={z}; ' 
+                                 f'grid state: {self.grid.nonzero()[0]};')
             self.grid[y, x, z] = 0
 
     def reset(self):
@@ -160,8 +182,12 @@ class GridWorld(Env):
         self.agent.place_or_remove_block(remove=remove, place=add)
         self.agent.update(dt=1/20.)
         x, y, z = self.agent.position
-        pitch, yaw = self.agent.rotation
-        yaw = fmod(yaw, 360)
+        yaw, pitch = self.agent.rotation
+        while yaw > 360.:
+            yaw -= 360.
+        while yaw < 0.0:
+            yaw += 360.0
+        self.agent.rotation = (yaw, pitch)
         obs = {'agentPos': np.array([x, y, z, pitch, yaw], dtype=np.float32)}
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
         obs['grid'] = self.grid.copy().astype(np.float32)
@@ -178,37 +204,90 @@ class GridWorld(Env):
             reward = wrong_placement
         else:
             reward = right_placement
+        self.right_placement = right_placement
+        self.wrong_placement = wrong_placement
         done = done or (self.step_no == self.max_steps)
         return obs, reward, done, {'target_grid': self.task.target_grid}
 
 import cv2
+import os
+from collections import defaultdict
 
 class Visual(Wrapper):
     def __init__(self, env: Env) -> None:
         super().__init__(env)
-        # self.c = 0
-        # self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        # self.w = cv2.VideoWriter(f'test{self.c}.mp4', self.fourcc, 20, (640,640))
+        self.c = None
+        self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        self.w = None
+        self.data = defaultdict(list)
+        self.logging = False
+        self.turned_off = True
+    
+    def turn_on(self):
+        self.turned_off = False
+
+    def set_idx(self, ix):
+        self.c = ix
+        self.w = cv2.VideoWriter('episodes/ep{self.c}.mp4', self.fourcc, 20, (64,64))
 
     def step(self, action):
         obs, reward, done, info = super().step(action)
         # pov = self.env.render()
         # self.w.write(pov)
-        obs['pov'] = self.env.render()
+        if not self.turned_off:
+            pov = self.env.render()[..., :-1]
+            if self.logging:
+                for key in obs:
+                    self.data[key].append(obs[key])
+                self.data['reward'].append(reward)
+                self.data['done'].append(done)
+                self.w.write(pov)
         return obs, reward, done, info
     
     def reset(self):
         obs = super().reset()
-        # self.w = cv2.VideoWriter('test{self.c}.mp4',self.fourcc, 20, (640,640))
-        # self.c += 1
-        # pov = self.env.render()
-        # self.w.write(pov)
-        obs['pov'] = self.env.render()
+        if not self.turned_off:
+            if self.logging:
+                if not os.path.exists('episodes'):
+                    os.makedirs('episodes', exist_ok=True)
+                for k in self.data.keys():
+                    self.data[k] = np.stack(self.data[k], axis=0)
+                np.savez_compressed('episodes/ep{self.c}.npz', **self.data)
+                self.data = defaultdict(list)
+                self.w.release()
+                os.system('ffmpeg -y -hide_banner -loglevel error -i episodes/ep{self.c}.mp4 -vcodec libx264 episodes/ep{self.c}1.mp4 ' 
+                        '&& mv episodes/ep{self.c}1.mp4 episodes/ep{self.c}.mp4')
+                self.w = None
+                self.c += 1000
+                self.w = cv2.VideoWriter('episodes/ep{self.c}.mp4', self.fourcc, 20, (64,64))
+            # obs['pov'] = self.env.render()[..., :-1]
+
         return obs
 
+    def enable_renderer(self):
+        self.env.enable_renderer()
+        self.logging = True
 
 
-def create_env(visual=True, discretize=True):
+class SizeReward(Wrapper):
+  def __init__(self, env):
+    super().__init__(env)
+    self.size = 0
+
+  def reset(self):
+    self.size = 0
+    return super().reset()
+
+  def step(self, action):
+    obs, reward, done, info = super().step(action)
+    intersection = self.env.max_int
+    reward = max(intersection, self.size) - self.size
+    self.size = max(intersection, self.size)
+    reward += self.env.wrong_placement * 0.1
+    return obs, reward, done, info
+
+
+def create_env(visual=True, discretize=True, size_reward=True):
     target = np.zeros((9, 11, 11), dtype=np.int32)
     target[0, 5, 5] = 1
     target[0, 6, 5] = 2
@@ -216,6 +295,8 @@ def create_env(visual=True, discretize=True):
     target[1, 7, 5] = 2
     target[2, 7, 5] = 1
     env = GridWorld(target, render=visual, discretize=discretize)
-    if visual:
-        env = Visual(env)
+    # if visual:
+    env = Visual(env)
+    if size_reward:
+        env = SizeReward(env)
     return env

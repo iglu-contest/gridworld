@@ -28,6 +28,24 @@ class World(object):
     def add_callback(self, name, func):
         self.callbacks[name].append(func)
 
+    def deinit(self):
+        for block in list(self.placed):
+            self.remove_block(block)
+        self.initialized = False
+        for block in list(self.world.keys()):
+            self.remove_block(block)
+        # A mapping from position to the texture of the block at that position.
+        # This defines all the blocks that are currently in the world.
+        self.world = {}
+
+        # Same mapping as `world` but only contains blocks that are shown.
+        self.shown = {}
+
+        # Mapping from sector to a list of positions inside that sector.
+        self.sectors = {}
+
+        self.placed = set()
+
     def build_zone(self, x, y, z, pad=0):
         return -5 - pad <= x <= 5 + pad and -5 - pad <= z <= 5 + pad and -1 - pad <= y <= 9 + pad
 
@@ -161,7 +179,7 @@ class World(object):
         texture = self.world[position]
         self.shown[position] = texture
         for cb in self.callbacks['on_add']:
-            cb(position, texture)
+            cb(position, texture, build_zone=self.build_zone(*position))
 
     def hide_block(self, position):
         """ Hide the block at the given `position`. Hiding does not remove the
@@ -177,7 +195,7 @@ class World(object):
         """
         self.shown.pop(position)
         for cb in self.callbacks['on_remove']:
-            cb(position)
+            cb(position, build_zone=self.build_zone(*position))
 
     def show_sector(self, sector):
         """ Ensure all blocks in the given sector that should be shown are
