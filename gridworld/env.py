@@ -194,22 +194,20 @@ class GridWorld(Env):
         obs['grid'] = self.grid.copy().astype(np.float32)
         # print('>>>>>>>.', obs['grid'].nonzero())
         
-        # grid_size = (self.grid != 0).sum().item()
-        # wrong_placement = (self.prev_grid_size - grid_size) * 1
-        # max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
-        # done = max_int == self.task.target_size
-        # self.prev_grid_size = grid_size
-        # right_placement = (max_int - self.max_int) * 2
-        # self.max_int = max_int
-        # if right_placement == 0:
-        #     reward = wrong_placement
-        # else:
-        #     reward = right_placement
-        # self.right_placement = right_placement
-        # self.wrong_placement = wrong_placement
-        # done = done or (self.step_no == self.max_steps)
-        done = self.step_no == self.max_steps
-        reward = x + z
+        grid_size = (self.grid != 0).sum().item()
+        wrong_placement = (self.prev_grid_size - grid_size) * 1
+        max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
+        done = max_int == self.task.target_size
+        self.prev_grid_size = grid_size
+        right_placement = (max_int - self.max_int) * 2
+        self.max_int = max_int
+        if right_placement == 0:
+            reward = wrong_placement
+        else:
+            reward = right_placement
+        self.right_placement = right_placement
+        self.wrong_placement = wrong_placement
+        done = done or (self.step_no == self.max_steps)
         return obs, reward, done, {'target_grid': self.task.target_grid}
 
 import cv2
