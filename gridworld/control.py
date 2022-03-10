@@ -42,6 +42,7 @@ class Agent(object):
 
         # Velocity in the y (upward) direction.
         self.dy = 0
+        self.time_int_steps = 2
 
         # A list of blocks the player can place. Hit num keys to cycle.
         self.inventory = [
@@ -126,7 +127,7 @@ class Agent(object):
         if sector != self.sector:
             self.world.change_sectors(self.sector, sector)
             self.sector = sector
-        m = 2
+        m = self.time_int_steps
         dt = min(dt, 0.2)
         for _ in range(m):
             self._update(dt / m)
@@ -155,6 +156,14 @@ class Agent(object):
             # hit terminal velocity; if you are jumping, slow down until you
             # start falling.
             self.dy -= dt * GRAVITY
+            if self.dy < -14:
+                self.time_int_steps = 12
+            elif self.dy < -10:
+                self.time_int_steps = 8
+            elif self.dy < -5:
+                self.time_int_steps = 4
+            else:
+                self.time_int_steps = 2
             self.dy = max(self.dy, -TERMINAL_VELOCITY)
             dy += self.dy * dt
         # collisions
@@ -166,7 +175,7 @@ class Agent(object):
             x, y, z = self.collide((x, y + dy, z), PLAYER_HEIGHT)
         self.position = (x, y, z)
     
-    def collide(self, position, height):
+    def collide(self, position, height, new_blocks=None):
         """ Checks to see if the player at the given `position` and `height`
         is colliding with any blocks in the world.
 
@@ -202,7 +211,8 @@ class Agent(object):
                     op = list(np)
                     op[1] -= dy
                     op[i] += face[i]
-                    if tuple(op) not in self.world.world:
+                    if tuple(op) not in self.world.world \
+                       and (new_blocks is None or tuple(op) not in new_blocks):
                         continue
                     p[i] -= (d - pad) * face[i]
                     if face == (0, -1, 0) or face == (0, 1, 0):
@@ -220,8 +230,17 @@ class Agent(object):
             # ON OSX, control + left click = right click.
             if previous:
                 if self.inventory[self.active_block - 1] > 0 and self.world.build_zone(*previous): 
-                    self.world.add_block(previous, self.active_block)
-                    self.inventory[self.active_block - 1] -= 1
+                    # # block under themself
+                    # ix, iy, iz = normalize(self.position)
+                    # x,y,z = self.position
+                    # # TODO: make padding global
+                    # pad = 0.25
+                    # if (ix, iy, iz) == previous \
+                    #     and (x - ix < pad or x - ix > 1 - pad) \
+                    #     and (z - iz < pad or z - iz > 1 - pad):
+                    if True:
+                        self.world.add_block(previous, self.active_block)
+                        self.inventory[self.active_block - 1] -= 1
         if remove and block:
             texture = self.world.world[block]
             if texture != GREY and texture != WHITE:

@@ -10,6 +10,7 @@ from gym import Env, Wrapper
 import numpy as np
 from copy import copy
 from math import fmod
+from uuid import uuid4
 
 
 class GridWorld(Env):
@@ -193,20 +194,22 @@ class GridWorld(Env):
         obs['grid'] = self.grid.copy().astype(np.float32)
         # print('>>>>>>>.', obs['grid'].nonzero())
         
-        grid_size = (self.grid != 0).sum().item()
-        wrong_placement = (self.prev_grid_size - grid_size) * 1
-        max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
-        done = max_int == self.task.target_size
-        self.prev_grid_size = grid_size
-        right_placement = (max_int - self.max_int) * 2
-        self.max_int = max_int
-        if right_placement == 0:
-            reward = wrong_placement
-        else:
-            reward = right_placement
-        self.right_placement = right_placement
-        self.wrong_placement = wrong_placement
-        done = done or (self.step_no == self.max_steps)
+        # grid_size = (self.grid != 0).sum().item()
+        # wrong_placement = (self.prev_grid_size - grid_size) * 1
+        # max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
+        # done = max_int == self.task.target_size
+        # self.prev_grid_size = grid_size
+        # right_placement = (max_int - self.max_int) * 2
+        # self.max_int = max_int
+        # if right_placement == 0:
+        #     reward = wrong_placement
+        # else:
+        #     reward = right_placement
+        # self.right_placement = right_placement
+        # self.wrong_placement = wrong_placement
+        # done = done or (self.step_no == self.max_steps)
+        done = self.step_no == self.max_steps
+        reward = x + z
         return obs, reward, done, {'target_grid': self.task.target_grid}
 
 import cv2
@@ -222,13 +225,15 @@ class Visual(Wrapper):
         self.data = defaultdict(list)
         self.logging = False
         self.turned_off = True
+        self.glob_step = 0
     
     def turn_on(self):
         self.turned_off = False
 
-    def set_idx(self, ix):
+    def set_idx(self, ix, glob_step):
         self.c = ix
-        self.w = cv2.VideoWriter('episodes/ep{self.c}.mp4', self.fourcc, 20, (64,64))
+        self.glob_step = glob_step
+        self.w = cv2.VideoWriter(f'episodes/step{self.glob_step}_ep{self.c}.mp4', self.fourcc, 20, (64,64))
 
     def step(self, action):
         obs, reward, done, info = super().step(action)
@@ -252,14 +257,15 @@ class Visual(Wrapper):
                     os.makedirs('episodes', exist_ok=True)
                 for k in self.data.keys():
                     self.data[k] = np.stack(self.data[k], axis=0)
-                np.savez_compressed('episodes/ep{self.c}.npz', **self.data)
+                np.savez_compressed(f'episodes/step{self.glob_step}_ep{self.c}.npz', **self.data)
                 self.data = defaultdict(list)
                 self.w.release()
-                os.system('ffmpeg -y -hide_banner -loglevel error -i episodes/ep{self.c}.mp4 -vcodec libx264 episodes/ep{self.c}1.mp4 ' 
-                        '&& mv episodes/ep{self.c}1.mp4 episodes/ep{self.c}.mp4')
+                fname = f'step{self.glob_step}_ep{self.c}'
+                os.system(f'ffmpeg -y -hide_banner -loglevel error -i episodes/{fname}.mp4 -vcodec libx264 episodes/{fname}1.mp4 ' 
+                          f'&& mv episodes/{fname}1.mp4 episodes/{fname}.mp4')
                 self.w = None
                 self.c += 1000
-                self.w = cv2.VideoWriter('episodes/ep{self.c}.mp4', self.fourcc, 20, (64,64))
+                self.w = cv2.VideoWriter(f'episodes/step{self.glob_step}_ep{self.c}.mp4', self.fourcc, 20, (64,64))
             # obs['pov'] = self.env.render()[..., :-1]
 
         return obs
@@ -267,6 +273,30 @@ class Visual(Wrapper):
     def enable_renderer(self):
         self.env.enable_renderer()
         self.logging = True
+
+
+import atexit
+class ActionsSaver(Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.actions = []
+        self.path = f'episodes/actions/{str(uuid4().hex)}.csv'
+        self.f = open(self.path, 'w')
+        self.f.write('action\n')
+        atexit.register(self.reset)
+
+    def reset(self):
+        obs = super().reset()
+        self.f.close()
+        os.makedirs('episodes/actions', exist_ok=True)
+        self.path = f'episodes/actions/{str(uuid4().hex)}.csv'
+        self.f = open(self.path, 'w')
+        self.f.write('action\n')
+        return obs
+    
+    def step(self, action):
+        self.f.write(f'{action}\n')
+        return super().step(action)
 
 
 class SizeReward(Wrapper):
@@ -283,20 +313,21 @@ class SizeReward(Wrapper):
     intersection = self.env.max_int
     reward = max(intersection, self.size) - self.size
     self.size = max(intersection, self.size)
-    reward += self.env.wrong_placement * 0.1
+    reward += min(self.env.wrong_placement * 0.1, 0)
     return obs, reward, done, info
 
 
 def create_env(visual=True, discretize=True, size_reward=True):
     target = np.zeros((9, 11, 11), dtype=np.int32)
     target[0, 5, 5] = 1
-    target[0, 6, 5] = 2
+    target[0, 6, 5] = 1
     target[0, 7, 5] = 1
-    target[1, 7, 5] = 2
+    target[1, 7, 5] = 1
     target[2, 7, 5] = 1
     env = GridWorld(target, render=visual, discretize=discretize)
-    # if visual:
-    env = Visual(env)
+    if visual:
+        env = Visual(env)
+    # env = ActionsSaver(env)
     if size_reward:
         env = SizeReward(env)
     return env
