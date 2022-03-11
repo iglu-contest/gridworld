@@ -1,3 +1,4 @@
+from pandas import NA
 import pyglet
 pyglet.options["headless"] = True
 from gridworld.world import World
@@ -45,11 +46,12 @@ class GridWorld(Env):
                 low=np.array([-8, -2, -8, -90, 0], dtype=np.float32), 
                 high=np.array([8, 12, 8, 90, 360], dtype=np.float32), 
                 shape=(5,)),
-            'inventory': Box(low=0, high=20, shape=(6,)),
-            'grid': Box(low=-1, high=7, shape=(9, 11, 11))
+            'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
+            'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
+            'grid': Box(low=-1, high=7, shape=(9, 11, 11), dtype=np.float32)
         }
-        if render:
-            self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+        # if render:
+        #     self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         self.observation_space = Dict(self.observation_space)
         self.max_int = 0
         self.do_render = render
@@ -106,7 +108,8 @@ class GridWorld(Env):
         self.agent.inventory = [20 for _ in range(6)]
         obs = {
             'agentPos': np.array([0., 0., 0., 0., 0.], dtype=np.float32),
-            'inventory': np.array([20. for _ in range(6)], dtype=np.float32)
+            'inventory': np.array([20. for _ in range(6)], dtype=np.float32),
+            'compass': np.array([0.], dtype=np.float32),
         }
         obs['grid'] = self.grid.copy().astype(np.float32)
         # print('>>>>>>>.', obs['grid'].nonzero())
@@ -192,27 +195,42 @@ class GridWorld(Env):
         obs = {'agentPos': np.array([x, y, z, pitch, yaw], dtype=np.float32)}
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
         obs['grid'] = self.grid.copy().astype(np.float32)
+        obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
         # print('>>>>>>>.', obs['grid'].nonzero())
         
-        grid_size = (self.grid != 0).sum().item()
-        wrong_placement = (self.prev_grid_size - grid_size) * 1
-        max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
-        done = max_int == self.task.target_size
-        self.prev_grid_size = grid_size
-        right_placement = (max_int - self.max_int) * 2
-        self.max_int = max_int
-        if right_placement == 0:
-            reward = wrong_placement
-        else:
-            reward = right_placement
-        self.right_placement = right_placement
-        self.wrong_placement = wrong_placement
-        done = done or (self.step_no == self.max_steps)
+        # grid_size = (self.grid != 0).sum().item()
+        # wrong_placement = (self.prev_grid_size - grid_size) * 1
+        # max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
+        # done = max_int == self.task.target_size
+        # self.prev_grid_size = grid_size
+        # right_placement = (max_int - self.max_int) * 2
+        # self.max_int = max_int
+        # if right_placement == 0:
+        #     reward = wrong_placement
+        # else:
+        #     reward = right_placement
+        # self.right_placement = right_placement
+        # self.wrong_placement = wrong_placement
+        # done = done or (self.step_no == self.max_steps)
+        done = self.step_no == self.max_steps
+        reward = x + z
         return obs, reward, done, {'target_grid': self.task.target_grid}
 
 import cv2
 import os
 from collections import defaultdict
+
+class Navigate(Wrapper):
+    def __init__(self, env: Env) -> None:
+        super().__init__(env)
+        self.action_space = Discrete(5)
+    
+    def step(self, action):
+        # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left; 
+        # 13 camera right; 14 camera up; 15 camera down; 16 attack; 17 use;
+        # if action >= 6:
+        #     action += 6
+        return self.env.step(action + 1)
 
 class Visual(Wrapper):
     def __init__(self, env: Env) -> None:
@@ -224,6 +242,7 @@ class Visual(Wrapper):
         self.logging = False
         self.turned_off = True
         self.glob_step = 0
+        self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
     
     def turn_on(self):
         self.turned_off = False
@@ -237,8 +256,10 @@ class Visual(Wrapper):
         obs, reward, done, info = super().step(action)
         # pov = self.env.render()
         # self.w.write(pov)
+        pov = self.env.render()[..., :-1]
+        obs['pov'] = pov
         if not self.turned_off:
-            pov = self.env.render()[..., :-1]
+            
             if self.logging:
                 for key in obs:
                     self.data[key].append(obs[key])
@@ -264,7 +285,7 @@ class Visual(Wrapper):
                 self.w = None
                 self.c += 1000
                 self.w = cv2.VideoWriter(f'episodes/step{self.glob_step}_ep{self.c}.mp4', self.fourcc, 20, (64,64))
-            # obs['pov'] = self.env.render()[..., :-1]
+        obs['pov'] = self.env.render()[..., :-1]
 
         return obs
 
@@ -315,7 +336,7 @@ class SizeReward(Wrapper):
     return obs, reward, done, info
 
 
-def create_env(visual=True, discretize=True, size_reward=True):
+def create_env(visual=True, discretize=True, size_reward=True, log_actions=False):
     target = np.zeros((9, 11, 11), dtype=np.int32)
     target[0, 5, 5] = 1
     target[0, 6, 5] = 1
@@ -325,7 +346,10 @@ def create_env(visual=True, discretize=True, size_reward=True):
     env = GridWorld(target, render=visual, discretize=discretize)
     if visual:
         env = Visual(env)
-    # env = ActionsSaver(env)
+    if log_actions:
+        env = ActionsSaver(env)
     if size_reward:
         env = SizeReward(env)
+
+    env = Navigate(env)
     return env
