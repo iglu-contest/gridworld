@@ -15,7 +15,7 @@ from uuid import uuid4
 
 
 class GridWorld(Env):
-    def __init__(self, target, render=True, max_steps=500, discretize=False) -> None:
+    def __init__(self, target, render=True, max_steps=150, discretize=False) -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
@@ -24,6 +24,8 @@ class GridWorld(Env):
         self.max_steps = max_steps
         self.world.add_callback('on_add', self.add_block)
         self.world.add_callback('on_remove', self.remove_block)
+        self.right_placement = 0
+        self.wrong_placement = 0
         self.discretize = discretize
         if discretize:
             self.parse = self.parse_low_level_action
@@ -104,6 +106,7 @@ class GridWorld(Env):
         for block in set(self.world.placed):
             self.world.remove_block(block)
         self.agent.position = (0, 0, 0)
+        self.agent.prev_position = (0, 0, 0)
         self.agent.rotation = (0, 0)
         self.agent.inventory = [20 for _ in range(6)]
         obs = {
@@ -180,6 +183,7 @@ class GridWorld(Env):
         # print(self.agent.position, self.agent.rotation, action)
         # print('>>>>>>>>>>')
         self.step_no += 1
+        self.agent.prev_position = self.agent.position
         strafe, jump, inventory, camera, remove, add = self.parse(action)
         self.agent.movement(strafe=strafe, jump=jump, inventory=inventory)
         self.agent.move_camera(*camera)
@@ -198,39 +202,47 @@ class GridWorld(Env):
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
         # print('>>>>>>>.', obs['grid'].nonzero())
         
-        # grid_size = (self.grid != 0).sum().item()
-        # wrong_placement = (self.prev_grid_size - grid_size) * 1
-        # max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
-        # done = max_int == self.task.target_size
-        # self.prev_grid_size = grid_size
-        # right_placement = (max_int - self.max_int) * 2
-        # self.max_int = max_int
-        # if right_placement == 0:
-        #     reward = wrong_placement
-        # else:
-        #     reward = right_placement
-        # self.right_placement = right_placement
-        # self.wrong_placement = wrong_placement
-        # done = done or (self.step_no == self.max_steps)
-        done = self.step_no == self.max_steps
-        reward = x + z
+        grid_size = (self.grid != 0).sum().item()
+        wrong_placement = (self.prev_grid_size - grid_size) * 0.1
+        max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
+        done = max_int == self.task.target_size
+        self.prev_grid_size = grid_size
+        right_placement = (max_int - self.max_int) * 1
+        self.max_int = max_int
+        if right_placement == 0:
+            reward = wrong_placement
+        else:
+            reward = right_placement
+        self.right_placement = right_placement
+        self.wrong_placement = wrong_placement
+        done = done or (self.step_no == self.max_steps)
+        # done = self.step_no == self.max_steps
+        # reward = x - self.agent.prev_position[0] + z - self.agent.prev_position[2]
         return obs, reward, done, {'target_grid': self.task.target_grid}
 
 import cv2
 import os
 from collections import defaultdict
 
-class Navigate(Wrapper):
+class Actions(Wrapper):
     def __init__(self, env: Env) -> None:
         super().__init__(env)
-        self.action_space = Discrete(5)
+        self.action_map = [
+            # from new idx to old ones
+            0, # noop
+            5, # jump
+            6, #7, 8, 9, 10, 11, # hotbar
+            12, 13, 14, 15, 16, 17  
+        ]
+        self.action_space = Discrete(len(self.action_map))
+
     
     def step(self, action):
         # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left; 
         # 13 camera right; 14 camera up; 15 camera down; 16 attack; 17 use;
         # if action >= 6:
         #     action += 6
-        return self.env.step(action + 1)
+        return self.env.step(self.action_map[action])
 
 class Visual(Wrapper):
     def __init__(self, env: Env) -> None:
@@ -329,10 +341,10 @@ class SizeReward(Wrapper):
 
   def step(self, action):
     obs, reward, done, info = super().step(action)
-    intersection = self.env.max_int
+    intersection = self.unwrapped.max_int
     reward = max(intersection, self.size) - self.size
     self.size = max(intersection, self.size)
-    reward += min(self.env.wrong_placement * 0.1, 0)
+    reward += min(self.unwrapped.wrong_placement * 0.1, 0)
     return obs, reward, done, info
 
 
@@ -351,5 +363,5 @@ def create_env(visual=True, discretize=True, size_reward=True, log_actions=False
     if size_reward:
         env = SizeReward(env)
 
-    env = Navigate(env)
+    env = Actions(env)
     return env
