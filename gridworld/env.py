@@ -15,7 +15,7 @@ from uuid import uuid4
 
 
 class GridWorld(Env):
-    def __init__(self, target, render=True, max_steps=150, discretize=False) -> None:
+    def __init__(self, target, render=True, max_steps=250, select_and_place=False, discretize=False) -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
@@ -26,6 +26,7 @@ class GridWorld(Env):
         self.world.add_callback('on_remove', self.remove_block)
         self.right_placement = 0
         self.wrong_placement = 0
+        self.select_and_place = select_and_place
         self.discretize = discretize
         if discretize:
             self.parse = self.parse_low_level_action
@@ -185,6 +186,9 @@ class GridWorld(Env):
         self.step_no += 1
         self.agent.prev_position = self.agent.position
         strafe, jump, inventory, camera, remove, add = self.parse(action)
+        if self.select_and_place and inventory is not None:
+            add = True
+            remove = False
         self.agent.movement(strafe=strafe, jump=jump, inventory=inventory)
         self.agent.move_camera(*camera)
         self.agent.place_or_remove_block(remove=remove, place=add)
@@ -230,9 +234,12 @@ class Actions(Wrapper):
         self.action_map = [
             # from new idx to old ones
             0, # noop
+            1,2,3,4,
             5, # jump
-            6, #7, 8, 9, 10, 11, # hotbar
-            12, 13, 14, 15, 16, 17  
+            6, 7, #8, 9, 10, 11, # hotbar
+            12, 13, 14, 15, 
+            16, # break
+            # 17, # place  
         ]
         self.action_space = Discrete(len(self.action_map))
 
@@ -344,18 +351,28 @@ class SizeReward(Wrapper):
     intersection = self.unwrapped.max_int
     reward = max(intersection, self.size) - self.size
     self.size = max(intersection, self.size)
-    reward += min(self.unwrapped.wrong_placement * 0.1, 0)
+    # reward += min(self.unwrapped.wrong_placement * 0.1, 0)
     return obs, reward, done, info
 
 
-def create_env(visual=True, discretize=True, size_reward=True, log_actions=False):
+def create_env(visual=True, discretize=True, size_reward=True, select_and_place=True, log_actions=False):
     target = np.zeros((9, 11, 11), dtype=np.int32)
-    target[0, 5, 5] = 1
-    target[0, 6, 5] = 1
-    target[0, 7, 5] = 1
-    target[1, 7, 5] = 1
-    target[2, 7, 5] = 1
-    env = GridWorld(target, render=visual, discretize=discretize)
+    # target[0, 5, 5] = 1
+    # target[0, 6, 5] = 1
+    # target[0, 7, 5] = 1
+    # target[1, 7, 5] = 1
+    # target[2, 7, 5] = 1
+    target[0, 4, 4] = 1
+    target[0, 6, 4] = 1
+    target[0, 4, 6] = 1
+    target[0, 6, 6] = 1
+    for i in range(4, 7):
+        for j in range(4, 7):
+            if i == 5 and j == 5:
+                continue
+            target[1, i, j] = 2
+    print(target.nonzero()[0].shape)
+    env = GridWorld(target, render=visual, select_and_place=select_and_place, discretize=discretize)
     if visual:
         env = Visual(env)
     if log_actions:
@@ -364,4 +381,5 @@ def create_env(visual=True, discretize=True, size_reward=True, log_actions=False
         env = SizeReward(env)
 
     env = Actions(env)
+    print(env.action_space)
     return env
