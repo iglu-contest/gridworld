@@ -4,7 +4,7 @@ from pyglet.graphics import Batch, TextureGroup
 from scipy.ndimage import gaussian_filter
 from pyglet import image
 import pyglet
-
+from filelock import FileLock
 import math
 import numpy as np
 import os
@@ -63,12 +63,13 @@ class Renderer(Window):
         self.model.add_callback('on_remove', self.remove_block)
         self.batch = Batch()
         dir_path = os.path.dirname(gridworld.__file__)
-        Renderer.TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
-        np_texture = np.asarray(Image.open(Renderer.TEXTURE_PATH)).copy()
+        TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
+        np_texture = np.asarray(Image.open(TEXTURE_PATH)).copy()
         if kwargs['width'] <= 128:
             s = 1.5
             if kwargs['width'] <= 64:
                 s = 2
+            # TODO: create separate textures for low-res
             # for edge lines to look better in low resolution
             for i in range(4):
                 for j in range(4):
@@ -76,11 +77,13 @@ class Renderer(Window):
                         np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64], 
                         (s, s, 0), mode='nearest'
                     )
-            path = os.path.join(os.path.dirname(Renderer.TEXTURE_PATH), 'some.png')
-            Image.fromarray(np_texture).save(path)
+            path = os.path.join(os.path.dirname(TEXTURE_PATH), 'some.png')
+            with FileLock(f'/tmp/mylock'):
+                Image.fromarray(np_texture).save(path)
         else:
-            path = Renderer.TEXTURE_PATH
-        self.texture_group = TextureGroup(image.load(path).get_texture())
+            path = TEXTURE_PATH
+        with FileLock(f'/tmp/mylock'):
+            self.texture_group = TextureGroup(image.load(path).get_texture())
         self.overlay = False
         self._shown = {}
         self.label = pyglet.text.Label('', font_name='Arial', font_size=18,

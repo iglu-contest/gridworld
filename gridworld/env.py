@@ -46,8 +46,8 @@ class GridWorld(Env):
             self.parse = self.parse_action
         self.observation_space = {
             'agentPos': Box(
-                low=np.array([-8, -2, -8, -90, 0], dtype=np.float32), 
-                high=np.array([8, 12, 8, 90, 360], dtype=np.float32), 
+                low=np.array([-8, -2, -8, -90, 0], dtype=np.float32),
+                high=np.array([8, 12, 8, 90, 360], dtype=np.float32),
                 shape=(5,)),
             'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
             'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
@@ -60,7 +60,7 @@ class GridWorld(Env):
         self.do_render = render
         if render:
             self.renderer = Renderer(self.world, self.agent,
-                                     width=64, height=64, 
+                                     width=64, height=64,
                                      caption='Pyglet', resizable=False)
             setup()
         else:
@@ -73,7 +73,7 @@ class GridWorld(Env):
             self.reset()
             self.world.deinit()
             self.renderer = Renderer(self.world, self.agent,
-                                     width=64, height=64, 
+                                     width=64, height=64,
                                      caption='Pyglet', resizable=False)
             setup()
             self.do_render = True
@@ -96,7 +96,7 @@ class GridWorld(Env):
             z += 5
             y += 1
             if self.grid[y, x, z] == 0:
-                raise ValueError(f'Removal of non-existing block. address: y={y}, x={x}, z={z}; ' 
+                raise ValueError(f'Removal of non-existing block. address: y={y}, x={x}, z={z}; '
                                  f'grid state: {self.grid.nonzero()[0]};')
             self.grid[y, x, z] = 0
 
@@ -143,9 +143,9 @@ class GridWorld(Env):
         remove = bool(action['attack'])
         add = bool(action['use'])
         return strafe, jump, inventory, camera, remove, add
-    
+
     def parse_low_level_action(self, action):
-        # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left; 
+        # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left;
         # 13 camera right; 14 camera up; 15 camera down; 16 attack; 17 use;
         # action = list(action).index(1)
         strafe = [0, 0]
@@ -177,7 +177,7 @@ class GridWorld(Env):
         elif action == 16:
             remove = True
         elif action == 17:
-            add = True 
+            add = True
         return strafe, jump, inventory, camera, remove, add
 
     def step(self, action):
@@ -205,7 +205,7 @@ class GridWorld(Env):
         obs['grid'] = self.grid.copy().astype(np.float32)
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
         # print('>>>>>>>.', obs['grid'].nonzero())
-        
+
         grid_size = (self.grid != 0).sum().item()
         wrong_placement = (self.prev_grid_size - grid_size) * 0.1
         max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
@@ -237,15 +237,15 @@ class Actions(Wrapper):
             1,2,3,4,
             5, # jump
             6, 7, #8, 9, 10, 11, # hotbar
-            12, 13, 14, 15, 
+            12, 13, 14, 15,
             16, # break
-            # 17, # place  
+            # 17, # place
         ]
         self.action_space = Discrete(len(self.action_map))
 
-    
+
     def step(self, action):
-        # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left; 
+        # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left;
         # 13 camera right; 14 camera up; 15 camera down; 16 attack; 17 use;
         # if action >= 6:
         #     action += 6
@@ -261,8 +261,8 @@ class Visual(Wrapper):
         self.logging = False
         self.turned_off = True
         self.glob_step = 0
-        self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
-    
+        self.observation_space['obs'] = Box(low=0, high=1, shape=(64, 64, 3), dtype=np.float32)
+
     def turn_on(self):
         self.turned_off = False
 
@@ -276,9 +276,9 @@ class Visual(Wrapper):
         # pov = self.env.render()
         # self.w.write(pov)
         pov = self.env.render()[..., :-1]
-        obs['pov'] = pov
+        obs['obs'] = pov.astype(np.float32) / 255.
         if not self.turned_off:
-            
+
             if self.logging:
                 for key in obs:
                     self.data[key].append(obs[key])
@@ -286,7 +286,7 @@ class Visual(Wrapper):
                 self.data['done'].append(done)
                 self.w.write(pov)
         return obs, reward, done, info
-    
+
     def reset(self):
         obs = super().reset()
         if not self.turned_off:
@@ -299,12 +299,12 @@ class Visual(Wrapper):
                 self.data = defaultdict(list)
                 self.w.release()
                 fname = f'step{self.glob_step}_ep{self.c}'
-                os.system(f'ffmpeg -y -hide_banner -loglevel error -i episodes/{fname}.mp4 -vcodec libx264 episodes/{fname}1.mp4 ' 
+                os.system(f'ffmpeg -y -hide_banner -loglevel error -i episodes/{fname}.mp4 -vcodec libx264 episodes/{fname}1.mp4 '
                           f'&& mv episodes/{fname}1.mp4 episodes/{fname}.mp4')
                 self.w = None
                 self.c += 1000
                 self.w = cv2.VideoWriter(f'episodes/step{self.glob_step}_ep{self.c}.mp4', self.fourcc, 20, (64,64))
-        obs['pov'] = self.env.render()[..., :-1]
+        obs['obs'] = self.env.render()[..., :-1].astype(np.float32) / 255.
 
         return obs
 
@@ -331,7 +331,7 @@ class ActionsSaver(Wrapper):
         self.f = open(self.path, 'w')
         self.f.write('action\n')
         return obs
-    
+
     def step(self, action):
         self.f.write(f'{action}\n')
         return super().step(action)
@@ -351,7 +351,7 @@ class SizeReward(Wrapper):
     intersection = self.unwrapped.max_int
     reward = max(intersection, self.size) - self.size
     self.size = max(intersection, self.size)
-    # reward += min(self.unwrapped.wrong_placement * 0.1, 0)
+    reward += min(self.unwrapped.wrong_placement * 0.02, 0)
     return obs, reward, done, info
 
 
