@@ -206,6 +206,8 @@ class GridWorld(Env):
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
         # print('>>>>>>>.', obs['grid'].nonzero())
 
+        # done = (self.step_no == self.max_steps)
+        # reward = 0
         grid_size = (self.grid != 0).sum().item()
         wrong_placement = (self.prev_grid_size - grid_size) * 0.1
         max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
@@ -380,6 +382,6 @@ def create_env(visual=True, discretize=True, size_reward=True, select_and_place=
     if size_reward:
         env = SizeReward(env)
 
-    env = Actions(env)
+    # env = Actions(env)
     print(env.action_space)
     return env
