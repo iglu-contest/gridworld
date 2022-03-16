@@ -1,4 +1,3 @@
-from pandas import NA
 import pyglet
 pyglet.options["headless"] = True
 from gridworld.world import World
