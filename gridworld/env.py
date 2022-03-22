@@ -14,7 +14,7 @@ from uuid import uuid4
 
 
 class GridWorld(Env):
-    def __init__(self, target, render=True, max_steps=250, select_and_place=False, discretize=False) -> None:
+    def __init__(self, target, render=True, max_steps=100, select_and_place=False, discretize=False) -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
@@ -183,6 +183,7 @@ class GridWorld(Env):
         # print(self.agent.position, self.agent.rotation, action)
         # print('>>>>>>>>>>')
         self.step_no += 1
+        old_grid = self.grid.copy()
         self.agent.prev_position = self.agent.position
         strafe, jump, inventory, camera, remove, add = self.parse(action)
         if self.select_and_place and inventory is not None:
@@ -203,8 +204,13 @@ class GridWorld(Env):
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
         obs['grid'] = self.grid.copy().astype(np.float32)
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
+        diff = len((self.grid != old_grid).nonzero()[0])
+        if diff > 1:
+            raise ValueError('Impossible State!')
         # print('>>>>>>>.', obs['grid'].nonzero())
 
+        #done = (self.step_no == self.max_steps)
+        #reward = 0
         grid_size = (self.grid != 0).sum().item()
         wrong_placement = (self.prev_grid_size - grid_size) * 0.1
         max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
@@ -219,8 +225,8 @@ class GridWorld(Env):
         self.right_placement = right_placement
         self.wrong_placement = wrong_placement
         done = done or (self.step_no == self.max_steps)
-        # done = self.step_no == self.max_steps
-        # reward = x - self.agent.prev_position[0] + z - self.agent.prev_position[2]
+        #done = self.step_no == self.max_steps
+        #reward = x - self.agent.prev_position[0] + z - self.agent.prev_position[2]
         return obs, reward, done, {'target_grid': self.task.target_grid}
 
 import cv2
@@ -235,7 +241,7 @@ class Actions(Wrapper):
             0, # noop
             1,2,3,4,
             5, # jump
-            6, 7, #8, 9, 10, 11, # hotbar
+            6, 7, 8, 9, 10, 11, # hotbar
             12, 13, 14, 15,
             16, # break
             # 17, # place
@@ -379,6 +385,6 @@ def create_env(visual=True, discretize=True, size_reward=True, select_and_place=
     if size_reward:
         env = SizeReward(env)
 
-    env = Actions(env)
+    # env = Actions(env)
     print(env.action_space)
     return env

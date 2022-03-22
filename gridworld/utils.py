@@ -23,10 +23,14 @@ TERMINAL_VELOCITY = 50
 
 PLAYER_HEIGHT = 2
 
-def cube_vertices(x, y, z, n):
+def cube_vertices(x, y, z, n, top_only=False):
     """ Return the vertices of the cube at position x, y, z with size 2*n.
 
     """
+    if top_only:
+        return [
+            x-n,y+n,z-n, x-n,y+n,z+n, x+n,y+n,z+n, x+n,y+n,z-n,  # top
+        ]
     return [
         x-n,y+n,z-n, x-n,y+n,z+n, x+n,y+n,z+n, x+n,y+n,z-n,  # top
         x-n,y-n,z-n, x+n,y-n,z-n, x+n,y-n,z+n, x-n,y-n,z+n,  # bottom
@@ -36,14 +40,18 @@ def cube_vertices(x, y, z, n):
         x+n,y-n,z-n, x-n,y-n,z-n, x-n,y+n,z-n, x+n,y+n,z-n,  # back
     ]
 
-def cube_normals(x, y, z):
+def cube_normals(top_only=False):
+    if top_only:
+        return [
+            0, 1,0, 0, 1,0, 0, 1,0, 0, 1,0, # top
+        ]
     return [
         0, 1,0, 0, 1,0, 0, 1,0, 0, 1,0, # top
         0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, # bottom
         -1,0,0, -1,0,0, -1,0,0, -1,0,0, # left
          1,0,0,  1,0,0,  1,0,0,  1,0,0, # right
-        0,0, 1, 0,0, 1, 0,0, 1, 0,0, 1, # front 
-        0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1, # back 
+        0,0, 1, 0,0, 1, 0,0, 1, 0,0, 1, # front
+        0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1, # back
     ]
 
 @numba.jit
@@ -91,13 +99,13 @@ def tex_coord(x, y, n=4):
     return dx, dy, dx + m, dy, dx + m, dy + m, dx, dy + m
 
 
-def tex_coords(*side):
+def tex_coords(*side, top_only=False):
     """ Return a list of the texture squares for the top, bottom and side.
 
     """
     side = tex_coord(*side)
     result = []
-    for _ in range(6):
+    for _ in range(1 if top_only else 6):
         result.extend(side)
     return result
 
@@ -120,6 +128,17 @@ id2texture = {
     ORANGE: tex_coords(1, 1),
     PURPLE: tex_coords(2, 1),
     YELLOW: tex_coords(3, 1)
+}
+
+id2top_texture = {
+    WHITE: tex_coords(0, 0, top_only=True),
+    GREY: tex_coords(1, 0, top_only=True),
+    BLUE: tex_coords(2, 0, top_only=True),
+    GREEN: tex_coords(3, 0, top_only=True),
+    RED: tex_coords(0, 1, top_only=True),
+    ORANGE: tex_coords(1, 1, top_only=True),
+    PURPLE: tex_coords(2, 1, top_only=True),
+    YELLOW: tex_coords(3, 1, top_only=True)
 }
 
 FACES = [

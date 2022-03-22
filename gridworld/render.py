@@ -11,7 +11,7 @@ import os
 from PIL import Image
 import gridworld
 
-from .utils import cube_vertices, cube_normals, id2texture
+from .utils import WHITE, GREY, cube_vertices, cube_normals, id2texture, id2top_texture
 
 
 def setup_fog():
@@ -159,13 +159,14 @@ class Renderer(Window):
 
     def add_block(self, position, texture_id, **kwargs):
         x, y, z = position
-        texture = id2texture[texture_id]
-        vertex_data = cube_vertices(x, y, z, 0.5)
-        normal_data = cube_normals(x, y, z)
+        top_only = texture_id in [WHITE, GREY]
+        texture = (id2top_texture if top_only else id2texture)[texture_id]
+        vertex_data = cube_vertices(x, y, z, 0.5, top_only=top_only)
+        normal_data = cube_normals(top_only=top_only)
         texture_data = list(texture)
         # create vertex list
         # FIXME Maybe `add_indexed()` should be used instead
-        self._shown[position] = self.batch.add(24, GL_QUADS, self.texture_group,
+        self._shown[position] = self.batch.add(4 if top_only else 24, GL_QUADS, self.texture_group,
             ('v3f/static', vertex_data),
             ('t2f/static', texture_data),
             ('n3f/static', normal_data)
