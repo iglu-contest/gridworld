@@ -414,8 +414,8 @@ def create_env(visual=True, discretize=True, size_reward=True, select_and_place=
     target = [sum(steps[:i], []) for i in range(1, len(steps) + 1)]
     # print('steps!')
     env = GridWorld(target, render=visual, select_and_place=select_and_place, discretize=discretize)
-    # if visual:
-    #     env = Visual(env)
+    if visual:
+        env = Visual(env)
     if log_actions:
         env = ActionsSaver(env)
     # if size_reward:
