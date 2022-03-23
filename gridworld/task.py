@@ -37,7 +37,7 @@ class Task:
                             = full_grids[-2][:, x, z]
         # (dx, dz) is admissible iff the translation of target grid by (dx, dz) preserve (== doesn't cut)
         # target structure within original (unshifted) target grid
-        self.addmissible = [[(0,0)]]
+        self.admissible = [[(0,0)]]
         return
         for i in range(4):
             if full_grid is not None:
