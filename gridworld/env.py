@@ -14,7 +14,7 @@ from uuid import uuid4
 
 
 class GridWorld(Env):
-    def __init__(self, target, render=True, max_steps=100, select_and_place=False, discretize=False) -> None:
+    def __init__(self, target, render=True, max_steps=250, select_and_place=False, discretize=False) -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
@@ -107,13 +107,17 @@ class GridWorld(Env):
         self.task.sample()
         for block in set(self.world.placed):
             self.world.remove_block(block)
+        for x,y,z, bid in self.task.current.starting_grid:
+            self.world.add_block((x, y, z), bid)
         self.agent.position = (0, 0, 0)
         self.agent.prev_position = (0, 0, 0)
         self.agent.rotation = (0, 0)
         self.agent.inventory = [20 for _ in range(6)]
+        for _, _, _, color in self.task.current.starting_grid:
+            self.agent.inventory[color - 1] -= 1
         obs = {
             'agentPos': np.array([0., 0., 0., 0., 0.], dtype=np.float32),
-            'inventory': np.array([20. for _ in range(6)], dtype=np.float32),
+            'inventory': np.array(self.agent.inventory, dtype=np.float32),
             'compass': np.array([0.], dtype=np.float32),
         }
         obs['grid'] = self.grid.copy().astype(np.int32)
@@ -372,51 +376,51 @@ def create_env(visual=True, discretize=True, size_reward=True, select_and_place=
     [],
     [
         # purple
+        (-3, -1, -3, 5),
+        (-3, -1, -2, 5),
         (-3, 0, -3, 5),
-        (-3, 0, -2, 5),
-        (-3, 1, -3, 5),
     ],
     [
         # blue
+        (-2, -1, -2, 1),
+        (-2, -1, -1, 1),
         (-2, 0, -2, 1),
-        (-2, 0, -1, 1),
-        (-2, 1, -2, 1),
     ],
     [
         # green
+        (-1, -1, -1, 3),
+        (-1, -1, 0, 3),
         (-1, 0, -1, 3),
-        (-1, 0, 0, 3),
-        (-1, 1, -1, 3),
     ],
     [
         # yellow
+        (0, -1, 0, 2),
+        (0, -1, 1, 2),
         (0, 0, 0, 2),
-        (0, 0, 1, 2),
-        (0, 1, 0, 2),
     ], 
     [
         # orange
+        (1, -1, 1, 4),
+        (1, -1, 2, 4),
         (1, 0, 1, 4),
-        (1, 0, 2, 4),
-        (1, 1, 1, 4),
     ],
     [
         # red
+        (2, -1, 2, 6),
+        (2, -1, 3, 6),
         (2, 0, 2, 6),
-        (2, 0, 3, 6),
-        (2, 1, 2, 6),
     ]
     ]
     target = [sum(steps[:i], []) for i in range(1, len(steps) + 1)]
-    print('steps!')
+    # print('steps!')
     env = GridWorld(target, render=visual, select_and_place=select_and_place, discretize=discretize)
-    if visual:
-        env = Visual(env)
+    # if visual:
+    #     env = Visual(env)
     if log_actions:
         env = ActionsSaver(env)
     # if size_reward:
     #     env = SizeReward(env)
 
     # env = Actions(env)
-    print(env.action_space)
+    # print(env.action_space)
     return env

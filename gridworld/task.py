@@ -37,6 +37,8 @@ class Task:
                             = full_grids[-2][:, x, z]
         # (dx, dz) is admissible iff the translation of target grid by (dx, dz) preserve (== doesn't cut)
         # target structure within original (unshifted) target grid
+        self.addmissible = [[(0,0)]]
+        return
         for i in range(4):
             if full_grid is not None:
                 grid = full_grids[i]
@@ -50,8 +52,11 @@ class Task:
                         self.admissible[i].append((dx, dz))
 
     def sample(self):
-        self.max_int = 0
-        self.prev_grid_size = 0
+        if self.starting_grid is not None: 
+            self.max_int = self.maximal_intersection(Tasks.to_dense(self.starting_grid)) 
+        else:
+            self.max_int = 0
+        self.prev_grid_size = len(self.starting_grid) if self.starting_grid is not None else 0
         self.right_placement = 0
         self.wrong_placement = 0
         return self
@@ -92,6 +97,28 @@ class Tasks:
     """
     Represents many tasks where one can be active
     """
+    @classmethod
+    def to_dense(cls, blocks):
+        if isinstance(blocks, (list, tuple)):
+            if all(isinstance(b, (list, tuple)) for b in blocks):
+                grid = np.zeros(BUILD_ZONE_SIZE, dtype=np.int)
+                for x, y, z, block_id in blocks:
+                    grid[y + 1, x + BUILD_ZONE_SIZE_X // 2, z + BUILD_ZONE_SIZE_Z // 2] = block_id
+                blocks = grid
+        return blocks
+
+    @classmethod
+    def to_sparse(cls, blocks):
+        if isinstance(blocks, np.ndarray):
+            idx = blocks.nonzero()
+            types = [blocks[i] for i in zip(*idx)]
+            blocks = [(*i, t) for i, t in zip(idx, types)]
+            new_blocks = []
+            for x, y, z, bid in blocks:
+                new_blocks.append((x - BUILD_ZONE_SIZE_X // 2, y - 1, z - BUILD_ZONE_SIZE_Z // 2, bid))
+            blocks = new_blocks
+        return blocks
+
     def sample(self) -> Task:
         return NotImplemented
     
@@ -116,32 +143,19 @@ class Subtasks(Tasks):
         self.task_id = turn
         self.current = self.create_task(self.task_id)
         return self.current
-
-    def to_dense(self, blocks):
-        if isinstance(blocks, (list, tuple)):
-            if all(isinstance(b, (list, tuple)) for b in blocks):
-                grid = np.zeros(BUILD_ZONE_SIZE, dtype=np.int)
-                for x, y, z, block_id in blocks:
-                    grid[y, x + BUILD_ZONE_SIZE_X // 2, z + BUILD_ZONE_SIZE_Z // 2] = block_id
-                blocks = grid
-        return blocks
-
-    def to_sparse(self, blocks):
-        if isinstance(blocks, np.ndarray):
-            idx = blocks.nonzero()
-            types = [blocks[i] for i in zip(*idx)]
-            blocks = [(*i, t) for i, t in zip(idx, types)]
-        return blocks
     
     def create_task(self, turn):
         dialog = '\n'.join([utt for utt in self.dialog[:turn] if utt is not None])
         initial_blocks = self.structure_seq[turn - 1]
         target_grid = self.structure_seq[turn]
-        return Task(
+        task = Task(
             dialog, target_grid=self.to_dense(target_grid), 
             starting_grid=self.to_sparse(initial_blocks),
             full_grid=self.full_structure
         )
+        # To properly init max_int and prev_grid_size fields
+        task.sample()
+        return task
 
     def calc_reward(self, grid):
         return self.current.calc_reward(grid)
