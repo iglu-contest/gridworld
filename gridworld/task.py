@@ -52,8 +52,8 @@ class Task:
                         self.admissible[i].append((dx, dz))
 
     def sample(self):
-        if self.starting_grid is not None: 
-            self.max_int = self.maximal_intersection(Tasks.to_dense(self.starting_grid)) 
+        if self.starting_grid is not None:
+            self.max_int = self.maximal_intersection(Tasks.to_dense(self.starting_grid))
         else:
             self.max_int = 0
         self.prev_grid_size = len(self.starting_grid) if self.starting_grid is not None else 0
@@ -63,19 +63,15 @@ class Task:
 
     def calc_reward(self, grid):
         grid_size = (grid != 0).sum().item()
-        wrong_placement = (self.prev_grid_size - grid_size) * 0.1
+        wrong_placement = (self.prev_grid_size - grid_size)
         max_int = self.maximal_intersection(grid) if wrong_placement != 0 else self.max_int
         done = max_int == self.target_size
         self.prev_grid_size = grid_size
-        right_placement = (max_int - self.max_int) * 1
+        right_placement = (max_int - self.max_int)
         self.max_int = max_int
-        if right_placement == 0:
-            reward = wrong_placement
-        else:
-            reward = right_placement
         self.right_placement = right_placement
         self.wrong_placement = wrong_placement
-        return reward, done
+        return right_placement, wrong_placement, done
 
     def maximal_intersection(self, grid):
         max_int = 0
@@ -121,7 +117,7 @@ class Tasks:
 
     def sample(self) -> Task:
         return NotImplemented
-    
+
     def set_task(self, task_id):
         return NotImplemented
 
@@ -139,17 +135,17 @@ class Subtasks(Tasks):
         self.current = self.sample()
 
     def sample(self):
-        turn = np.random.choice(len(self.structure_seq) - 1) + 1 
+        turn = np.random.choice(len(self.structure_seq) - 1) + 1
         self.task_id = turn
         self.current = self.create_task(self.task_id)
         return self.current
-    
+
     def create_task(self, turn):
         dialog = '\n'.join([utt for utt in self.dialog[:turn] if utt is not None])
         initial_blocks = self.structure_seq[turn - 1]
         target_grid = self.structure_seq[turn]
         task = Task(
-            dialog, target_grid=self.to_dense(target_grid), 
+            dialog, target_grid=self.to_dense(target_grid),
             starting_grid=self.to_sparse(initial_blocks),
             full_grid=self.full_structure
         )
@@ -159,12 +155,12 @@ class Subtasks(Tasks):
 
     def calc_reward(self, grid):
         return self.current.calc_reward(grid)
-    
+
     def set_task(self, task_id):
         self.task_id = task_id
         self.current = self.create_task(task_id)
         return self.current
-    
+
     def set_task_obj(self, task: Task):
         self.task_id = None
         self.current = task

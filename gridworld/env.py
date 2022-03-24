@@ -14,13 +14,17 @@ from uuid import uuid4
 
 
 class GridWorld(Env):
-    def __init__(self, target, render=True, max_steps=250, select_and_place=False, discretize=False) -> None:
+    def __init__(
+            self, target, render=True, max_steps=250, select_and_place=False,
+            discretize=False, right_placement_scale=1., wrong_placement_scale=0.1) -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
         # self.task = Task('', target)
         self.task = Subtasks('', target)
         self.step_no = 0
+        self.right_placement_scale = right_placement_scale
+        self.wrong_placement_scale = wrong_placement_scale
         self.max_steps = max_steps
         self.world.add_callback('on_add', self.add_block)
         self.world.add_callback('on_remove', self.remove_block)
@@ -51,7 +55,8 @@ class GridWorld(Env):
                 shape=(5,)),
             'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
             'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
-            'grid': Box(low=-1, high=7, shape=(9, 11, 11), dtype=np.int32)
+            'grid': Box(low=-1, high=7, shape=(9, 11, 11), dtype=np.int32),
+            'target_grid': Box(low=-1, high=7, shape=(9, 11, 11), dtype=np.int32)
         }
         # if render:
         #     self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
@@ -121,6 +126,7 @@ class GridWorld(Env):
             'compass': np.array([0.], dtype=np.float32),
         }
         obs['grid'] = self.grid.copy().astype(np.int32)
+        obs['target_grid'] = self.task.current.target_grid.copy().astype(np.int32)
         # print('>>>>>>>.', obs['grid'].nonzero())
         return obs
 
@@ -215,11 +221,16 @@ class GridWorld(Env):
         #    raise ValueError('Impossible State!')
         # print('>>>>>>>.', obs['grid'].nonzero())
 
-        reward, done = self.task.calc_reward(self.grid)
+        right_placement, wrong_placement, done = self.task.calc_reward(self.grid)
         done = done or (self.step_no == self.max_steps)
+        if right_placement == 0:
+            reward = wrong_placement * self.wrong_placement_scale
+        else:
+            reward = right_placement * self.right_placement_scale
         # done = self.step_no == self.max_steps
         # reward = x - self.agent.prev_position[0] + z - self.agent.prev_position[2]
-        return obs, reward, done, {}#{'target_grid': self.task.target_grid}
+        obs['target_grid'] = self.task.current.target_grid.copy().astype(np.int32)
+        return obs, reward, done, {}
 
 import cv2
 import os
@@ -258,7 +269,9 @@ class Visual(Wrapper):
         self.logging = False
         self.turned_off = True
         self.glob_step = 0
-        self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+        ospace = dict(**self.observation_space.spaces)
+        ospace['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+        self.observation_space = Dict(ospace)
 
     def turn_on(self):
         self.turned_off = False
@@ -352,7 +365,11 @@ class SizeReward(Wrapper):
     return obs, reward, done, info
 
 
-def create_env(visual=True, discretize=True, size_reward=True, select_and_place=True, log_actions=False):
+def create_env(
+        visual=True, discretize=True, size_reward=True, select_and_place=True,
+        log_actions=False, right_placement_scale=1,
+        wrong_placement_scale=0.1
+    ):
     # target = np.zeros((9, 11, 11), dtype=np.int32)
 
     # target[0, 5, 5] = 1
@@ -360,7 +377,7 @@ def create_env(visual=True, discretize=True, size_reward=True, select_and_place=
     # target[0, 7, 5] = 1
     # target[1, 7, 5] = 1
     # target[2, 7, 5] = 1
-    
+
     # target[0, 4, 4] = 1
     # target[0, 6, 4] = 1
     # target[0, 4, 6] = 1
@@ -397,7 +414,7 @@ def create_env(visual=True, discretize=True, size_reward=True, select_and_place=
         (0, -1, 0, 2),
         (0, -1, 1, 2),
         (0, 0, 0, 2),
-    ], 
+    ],
     [
         # orange
         (1, -1, 1, 4),
@@ -413,7 +430,11 @@ def create_env(visual=True, discretize=True, size_reward=True, select_and_place=
     ]
     target = [sum(steps[:i], []) for i in range(1, len(steps) + 1)]
     # print('steps!')
-    env = GridWorld(target, render=visual, select_and_place=select_and_place, discretize=discretize)
+    env = GridWorld(
+        target, render=visual, select_and_place=select_and_place,
+        discretize=discretize, right_placement_scale=right_placement_scale,
+        wrong_placement_scale=wrong_placement_scale
+    )
     if visual:
         env = Visual(env)
     if log_actions:
