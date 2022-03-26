@@ -148,7 +148,7 @@ class Subtasks(Tasks):
     def create_task(self, turn):
         dialog = '\n'.join([utt for utt in self.dialog[:turn] if utt is not None])
         initial_blocks = self.structure_seq[turn - 1]
-        tid = min(turn + 1, len(self.structure_seq)) if not self.full else -1
+        tid = min(turn + 1, len(self.structure_seq) - 1) if not self.full else -1
         target_grid = self.structure_seq[tid]
         task = Task(
             dialog, target_grid=self.to_dense(target_grid),
