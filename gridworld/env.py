@@ -16,7 +16,7 @@ from uuid import uuid4
 class GridWorld(Env):
     def __init__(
             self, target, render=True, max_steps=250, select_and_place=False,
-            discretize=False, right_placement_scale=1., wrong_placement_scale=0.1) -> None:
+            discretize=False, right_placement_scale=1., wrong_placement_scale=0.1, name='') -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
@@ -62,6 +62,7 @@ class GridWorld(Env):
         #     self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         self.observation_space = Dict(self.observation_space)
         self.max_int = 0
+        self.name = name
         self.do_render = render
         if render:
             self.renderer = Renderer(self.world, self.agent,
@@ -105,16 +106,21 @@ class GridWorld(Env):
                                  f'grid state: {self.grid.nonzero()[0]};')
             self.grid[y, x, z] = 0
 
+    def set_task(self, turn, full=False):
+        self.task.next = turn
+        self.task.full = full
+
     def reset(self):
-        self.prev_grid_size = 0
-        self.max_int = 0
+        # if self.name == 'eval':
+        #     import pdb
+        #     pdb.set_trace()
         self.step_no = 0
         self.task.sample()
         for block in set(self.world.placed):
             self.world.remove_block(block)
         for x,y,z, bid in self.task.current.starting_grid:
             self.world.add_block((x, y, z), bid)
-        self.agent.position = (0, 0, 0)
+        self.agent.position = (0, 1, -3)
         self.agent.prev_position = (0, 0, 0)
         self.agent.rotation = (0, 0)
         self.agent.inventory = [20 for _ in range(6)]
@@ -220,7 +226,9 @@ class GridWorld(Env):
         #if diff > 1:
         #    raise ValueError('Impossible State!')
         # print('>>>>>>>.', obs['grid'].nonzero())
-
+        # if self.name == 'eval':
+        #     import pdb
+        #     pdb.set_trace()
         right_placement, wrong_placement, done = self.task.calc_reward(self.grid)
         done = done or (self.step_no == self.max_steps)
         if right_placement == 0:
@@ -260,92 +268,98 @@ class Actions(Wrapper):
         return self.env.step(self.action_map[action])
 
 class Visual(Wrapper):
-    def __init__(self, env: Env) -> None:
+    def __init__(self, env):
         super().__init__(env)
-        self.c = None
-        self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.w = None
-        self.data = defaultdict(list)
-        self.logging = False
-        self.turned_off = True
-        self.glob_step = 0
-        ospace = dict(**self.observation_space.spaces)
-        ospace['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
-        self.observation_space = Dict(ospace)
-
-    def turn_on(self):
-        self.turned_off = False
-
-    def set_idx(self, ix, glob_step):
-        self.c = ix
-        self.glob_step = glob_step
-        self.w = cv2.VideoWriter(f'episodes/step{self.glob_step}_ep{self.c}.mp4', self.fourcc, 20, (64,64))
+        # ospace = dict(**self.observation_space.spaces)
+        # ospace['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+        # self.observation_space = Dict(ospace)
+    
+    def reset(self):
+        obs = super().reset()
+        obs['pov'] = self.env.render()[..., :-1]
+        return obs
 
     def step(self, action):
         obs, reward, done, info = super().step(action)
-        # pov = self.env.render()
-        # self.w.write(pov)
         pov = self.env.render()[..., :-1]
         obs['pov'] = pov
-        if not self.turned_off:
+        return obs, reward, done, info
 
-            if self.logging:
-                for key in obs:
-                    self.data[key].append(obs[key])
-                self.data['reward'].append(reward)
-                self.data['done'].append(done)
-                self.w.write(pov)
+class Logged(Wrapper):
+    def __init__(self, env: Env) -> None:
+        super().__init__(env)
+        self.c = 0
+        self.t = 0
+        self.n = 0
+        self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        self.data = defaultdict(list)
+        self.actions = []
+        self.logging = False
+        self.turned_off = True
+        self.glob_step = 0
+        self.path = 'episodes'
+
+    def turn_on(self):
+        self.turned_off = False
+        self.logging = True
+    
+    def set_path(self, path):
+        self.path = path
+
+    def set_idx(self, worker_id, total_w, glob_step):
+        # self.c = worker_id
+        self.n = worker_id
+        self.t = total_w
+        self.glob_step = glob_step
+        if not os.path.exists(self.path):
+            os.makedirs(self.path, exist_ok=True)
+
+    def step(self, action):
+        obs, reward, done, info = super().step(action)
+        if self.logging:
+            pov = self.env.render()[..., :-1]
+            for key in obs:
+                self.data[key].append(obs[key])
+            self.data['reward'].append(reward)
+            self.data['done'].append(done)
+            self.data['pov'].append(pov[..., ::-1])
+            self.actions.append(action)
         return obs, reward, done, info
 
     def reset(self):
-        obs = super().reset()
-        if not self.turned_off:
-            if self.logging:
-                if not os.path.exists('episodes'):
-                    os.makedirs('episodes', exist_ok=True)
-                for k in self.data.keys():
+        if self.logging and self.unwrapped.step_no != 0:
+            path = f'{self.path}/step{self.glob_step}'
+            if not os.path.exists(path):
+                os.makedirs(path, exist_ok=True)
+            for k in self.data.keys():
+                if k != 'pov':
                     self.data[k] = np.stack(self.data[k], axis=0)
-                np.savez_compressed(f'episodes/step{self.glob_step}_ep{self.c}.npz', **self.data)
-                self.data = defaultdict(list)
-                self.w.release()
-                fname = f'step{self.glob_step}_ep{self.c}'
-                os.system(f'ffmpeg -y -hide_banner -loglevel error -i episodes/{fname}.mp4 -vcodec libx264 episodes/{fname}1.mp4 '
-                          f'&& mv episodes/{fname}1.mp4 episodes/{fname}.mp4')
-                self.w = None
-                self.c += 1000
-                self.w = cv2.VideoWriter(f'episodes/step{self.glob_step}_ep{self.c}.mp4', self.fourcc, 20, (64,64))
-        obs['pov'] = self.env.render()[..., :-1]
-
+            fname = f'ep_{str(uuid4().hex)[:6]}'
+            np.savez_compressed(f'{path}/{fname}.npz', **self.data)
+            with open(f'{path}/{fname}.csv', 'w') as f:
+                for action in self.actions:
+                    f.write(f'{action}\n')
+            if len(self.data['pov']) > 1:
+                w = cv2.VideoWriter(f'{path}/{fname}.mp4', self.fourcc, 20, (64,64))
+                for pov in self.data['pov']:
+                    w.write(pov)
+                w.release()
+            os.system(f'ffmpeg -y -hide_banner -loglevel error -i {path}/{fname}.mp4 -vcodec libx264 {path}/{fname}1.mp4 '
+                      f'&& mv {path}/{fname}1.mp4 {path}/{fname}.mp4')
+        obs = super().reset()
+        self.c += 1
+        if not self.turned_off:
+            pov = self.env.render()[..., :-1]
+            self.data = defaultdict(list)
+            self.actions = []
+            self.data['pov'].append(pov[..., ::-1])
+            for k in obs:
+                self.data[k].append(obs[k])
         return obs
 
     def enable_renderer(self):
         self.env.enable_renderer()
         self.logging = True
-
-
-import atexit
-class ActionsSaver(Wrapper):
-    def __init__(self, env):
-        super().__init__(env)
-        self.actions = []
-        self.path = f'episodes/actions/{str(uuid4().hex)}.csv'
-        self.f = open(self.path, 'w')
-        self.f.write('action\n')
-        atexit.register(self.reset)
-
-    def reset(self):
-        obs = super().reset()
-        self.f.close()
-        os.makedirs('episodes/actions', exist_ok=True)
-        self.path = f'episodes/actions/{str(uuid4().hex)}.csv'
-        self.f = open(self.path, 'w')
-        self.f.write('action\n')
-        return obs
-
-    def step(self, action):
-        self.f.write(f'{action}\n')
-        return super().step(action)
-
 
 class SizeReward(Wrapper):
   def __init__(self, env):
@@ -367,8 +381,8 @@ class SizeReward(Wrapper):
 
 def create_env(
         visual=True, discretize=True, size_reward=True, select_and_place=True,
-        log_actions=False, right_placement_scale=1,
-        wrong_placement_scale=0.1
+        log=False, right_placement_scale=1,
+        wrong_placement_scale=0.1, name=''
     ):
     # target = np.zeros((9, 11, 11), dtype=np.int32)
 
@@ -433,15 +447,14 @@ def create_env(
     env = GridWorld(
         target, render=visual, select_and_place=select_and_place,
         discretize=discretize, right_placement_scale=right_placement_scale,
-        wrong_placement_scale=wrong_placement_scale
+        wrong_placement_scale=wrong_placement_scale, name=name
     )
-    if visual:
-        env = Visual(env)
-    if log_actions:
-        env = ActionsSaver(env)
-    # if size_reward:
-    #     env = SizeReward(env)
-
-    # env = Actions(env)
+    # if visual:
+    #     env = Visual(env)
+    if size_reward:
+        env = SizeReward(env)
+    if log:
+        env = Logged(env)
+    env = Actions(env)
     # print(env.action_space)
     return env

@@ -131,11 +131,16 @@ class Subtasks(Tasks):
     def __init__(self, dialog, structure_seq) -> None:
         self.dialog = dialog
         self.structure_seq = structure_seq
+        self.next = None
+        self.full = False
         self.full_structure = self.to_dense(self.structure_seq[-1])
         self.current = self.sample()
 
     def sample(self):
-        turn = np.random.choice(len(self.structure_seq) - 1) + 1
+        if self.next is None:
+            turn = np.random.choice(len(self.structure_seq) - 1) + 1
+        else:
+            turn = self.next
         self.task_id = turn
         self.current = self.create_task(self.task_id)
         return self.current
@@ -143,7 +148,8 @@ class Subtasks(Tasks):
     def create_task(self, turn):
         dialog = '\n'.join([utt for utt in self.dialog[:turn] if utt is not None])
         initial_blocks = self.structure_seq[turn - 1]
-        target_grid = self.structure_seq[turn]
+        tid = min(turn + 1, len(self.structure_seq)) if not self.full else -1
+        target_grid = self.structure_seq[tid]
         task = Task(
             dialog, target_grid=self.to_dense(target_grid),
             starting_grid=self.to_sparse(initial_blocks),
