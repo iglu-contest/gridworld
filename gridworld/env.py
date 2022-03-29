@@ -15,12 +15,16 @@ from uuid import uuid4
 
 
 class GridWorld(Env):
-    def __init__(self, target, render=True, max_steps=100, select_and_place=False, discretize=False) -> None:
+    def __init__(
+            self, target, render=True, max_steps=250, select_and_place=False,
+            discretize=False, right_placement_scale=1., wrong_placement_scale=0.1, name='') -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
         self.task = Task('', target)
         self.step_no = 0
+        self.right_placement_scale = right_placement_scale
+        self.wrong_placement_scale = wrong_placement_scale
         self.max_steps = max_steps
         self.world.add_callback('on_add', self.add_block)
         self.world.add_callback('on_remove', self.remove_block)
@@ -28,6 +32,8 @@ class GridWorld(Env):
         self.wrong_placement = 0
         self.select_and_place = select_and_place
         self.discretize = discretize
+        self.initial_position = (0, 0, 0)
+        self.initial_rotation = (0, 0)
         if discretize:
             self.parse = self.parse_low_level_action
             self.action_space = Discrete(18)
@@ -51,12 +57,13 @@ class GridWorld(Env):
                 shape=(5,)),
             'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
             'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
-            'grid': Box(low=-1, high=7, shape=(9, 11, 11), dtype=np.float32)
+            'grid': Box(low=-1, high=7, shape=(9, 11, 11), dtype=np.int32),
         }
         # if render:
         #     self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         self.observation_space = Dict(self.observation_space)
         self.max_int = 0
+        self.name = name
         self.do_render = render
         if render:
             self.renderer = Renderer(self.world, self.agent,
@@ -100,22 +107,32 @@ class GridWorld(Env):
                                  f'grid state: {self.grid.nonzero()[0]};')
             self.grid[y, x, z] = 0
 
+    def initialize_world(self, starting_grid, initial_poisition):
+        self.starting_grid = starting_grid
+        self.initial_position = tuple(initial_poisition[:3])
+        self.innitial_rotation = tuple(initial_poisition[3:])
+        self.reset()
+
     def reset(self):
-        self.prev_grid_size = 0
-        self.max_int = 0
         self.step_no = 0
         for block in set(self.world.placed):
             self.world.remove_block(block)
-        self.agent.position = (0, 0, 0)
-        self.agent.prev_position = (0, 0, 0)
-        self.agent.rotation = (0, 0)
+        for x,y,z, bid in self.starting_grid:
+            self.world.add_block((x, y, z), bid)
+        self.agent.position = self.initial_position
+        self.agent.rotation = self.initial_rotation
+        self.max_int = self.task.maximal_intersection(self.grid)
+        self.prev_grid_size = len(self.grid.nonzero()[0])
+        self.agent.prev_position = self.agent.position
         self.agent.inventory = [20 for _ in range(6)]
+        for _, _, _, color in self.starting_grid:
+            self.agent.inventory[color - 1] -= 1
         obs = {
             'agentPos': np.array([0., 0., 0., 0., 0.], dtype=np.float32),
-            'inventory': np.array([20. for _ in range(6)], dtype=np.float32),
+            'inventory': np.array(self.agent.inventory, dtype=np.float32),
             'compass': np.array([0.], dtype=np.float32),
         }
-        obs['grid'] = self.grid.copy().astype(np.float32)
+        obs['grid'] = self.grid.copy().astype(np.int32)
         # print('>>>>>>>.', obs['grid'].nonzero())
         return obs
 
@@ -203,7 +220,7 @@ class GridWorld(Env):
         self.agent.rotation = (yaw, pitch)
         obs = {'agentPos': np.array([x, y, z, pitch, yaw], dtype=np.float32)}
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
-        obs['grid'] = self.grid.copy().astype(np.float32)
+        obs['grid'] = self.grid.copy().astype(np.int32)
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
         diff = len((self.grid != old_grid).nonzero()[0])
         if diff > 1:
@@ -213,11 +230,11 @@ class GridWorld(Env):
         #done = (self.step_no == self.max_steps)
         #reward = 0
         grid_size = (self.grid != 0).sum().item()
-        wrong_placement = (self.prev_grid_size - grid_size) * 0.1
+        wrong_placement = (self.prev_grid_size - grid_size) * self.wrong_placement_scale
         max_int = self.task.maximal_intersection(self.grid) if wrong_placement != 0 else self.max_int
         done = max_int == self.task.target_size
         self.prev_grid_size = grid_size
-        right_placement = (max_int - self.max_int) * 1
+        right_placement = (max_int - self.max_int) * self.right_placement_scale
         self.max_int = max_int
         if right_placement == 0:
             reward = wrong_placement
