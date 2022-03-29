@@ -120,7 +120,7 @@ class GridWorld(Env):
             self.world.remove_block(block)
         for x,y,z, bid in self.task.current.starting_grid:
             self.world.add_block((x, y, z), bid)
-        self.agent.position = (0, 1, -3)
+        self.agent.position = (0, 1, 3)
         self.agent.prev_position = (0, 0, 0)
         self.agent.rotation = (0, 0)
         self.agent.inventory = [20 for _ in range(6)]
@@ -267,6 +267,36 @@ class Actions(Wrapper):
         #     action += 6
         return self.env.step(self.action_map[action])
 
+class debug(Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.actions = []
+        self.total_reward = 0
+        self.turn = None
+        self.turn_goal = None
+
+    def step(self, action):
+        self.actions.append(action)
+        obs, reward, done, info = super().step(action)
+        self.total_reward += reward
+        if done:
+            import pickle
+            if self.total_reward > (18 - (self.turn - 1) * 3):
+                if not os.path.exists('wrong_actions'):
+                    os.makedirs('wrong_actions', exist_ok=True)
+                with open(f'wrong_actions/{uuid4().hex()[:10]}.pkl', 'wb') as f:
+                    pickle.dump((self.actions, self.total_reward, self.turn, self.turn_goal), f)                    
+                print(f'reward of {self.total_reward} at turn {self.turn}')
+        return obs, reward, done, info
+    
+    def reset(self):
+        obs = super().reset()
+        self.actions = []
+        self.total_reward = 0
+        self.turn = self.unwrapped.task.task_start 
+        self.turn_goal = self.unwrapped.task.task_goal
+        return obs
+
 class Visual(Wrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -288,12 +318,10 @@ class Visual(Wrapper):
 class Logged(Wrapper):
     def __init__(self, env: Env) -> None:
         super().__init__(env)
-        self.c = 0
-        self.t = 0
-        self.n = 0
         self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.data = defaultdict(list)
         self.actions = []
+        self.desc = ''
         self.logging = False
         self.turned_off = True
         self.glob_step = 0
@@ -306,13 +334,9 @@ class Logged(Wrapper):
     def set_path(self, path):
         self.path = path
 
-    def set_idx(self, worker_id, total_w, glob_step):
-        # self.c = worker_id
-        self.n = worker_id
-        self.t = total_w
+    def set_desc(self, desc, glob_step):
+        self.desc = desc
         self.glob_step = glob_step
-        if not os.path.exists(self.path):
-            os.makedirs(self.path, exist_ok=True)
 
     def step(self, action):
         obs, reward, done, info = super().step(action)
@@ -324,17 +348,15 @@ class Logged(Wrapper):
             self.data['done'].append(done)
             self.data['pov'].append(pov[..., ::-1])
             self.actions.append(action)
-        return obs, reward, done, info
-
-    def reset(self):
-        if self.logging and self.unwrapped.step_no != 0:
+        if done and self.logging and self.unwrapped.step_no != 0:
             path = f'{self.path}/step{self.glob_step}'
+            # raise
             if not os.path.exists(path):
                 os.makedirs(path, exist_ok=True)
             for k in self.data.keys():
                 if k != 'pov':
                     self.data[k] = np.stack(self.data[k], axis=0)
-            fname = f'ep_{str(uuid4().hex)[:6]}'
+            fname = f'ep_{self.desc}_{str(uuid4().hex)[:6]}'
             np.savez_compressed(f'{path}/{fname}.npz', **self.data)
             with open(f'{path}/{fname}.csv', 'w') as f:
                 for action in self.actions:
@@ -346,12 +368,14 @@ class Logged(Wrapper):
                 w.release()
             os.system(f'ffmpeg -y -hide_banner -loglevel error -i {path}/{fname}.mp4 -vcodec libx264 {path}/{fname}1.mp4 '
                       f'&& mv {path}/{fname}1.mp4 {path}/{fname}.mp4')
-        obs = super().reset()
-        self.c += 1
-        if not self.turned_off:
-            pov = self.env.render()[..., :-1]
             self.data = defaultdict(list)
             self.actions = []
+        return obs, reward, done, info
+
+    def reset(self):
+        obs = super().reset()
+        if not self.turned_off:
+            pov = self.env.render()[..., :-1]
             self.data['pov'].append(pov[..., ::-1])
             for k in obs:
                 self.data[k].append(obs[k])
@@ -443,6 +467,7 @@ def create_env(
     ]
     ]
     target = [sum(steps[:i], []) for i in range(1, len(steps) + 1)]
+    print(len(target))
     # print('steps!')
     env = GridWorld(
         target, render=visual, select_and_place=select_and_place,
@@ -456,5 +481,6 @@ def create_env(
     if log:
         env = Logged(env)
     env = Actions(env)
+    env = debug(env)
     # print(env.action_space)
     return env

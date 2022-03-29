@@ -120,10 +120,13 @@ class Tasks:
 
     def set_task(self, task_id):
         return NotImplemented
+    
+    def get_target(self):
+        return NotImplemented
 
     def set_task_obj(self, task: Task):
         return NotImplemented
-
+        
 
 class Subtasks(Tasks):
     """ Subtasks object represents a staged task where subtasks have separate segments
@@ -133,22 +136,27 @@ class Subtasks(Tasks):
         self.structure_seq = structure_seq
         self.next = None
         self.full = False
+        self.task_start = 0
+        self.task_goal = 0
         self.full_structure = self.to_dense(self.structure_seq[-1])
         self.current = self.sample()
 
     def sample(self):
         if self.next is None:
             turn = np.random.choice(len(self.structure_seq) - 1) + 1
+            turn_goal = turn + 1
         else:
             turn = self.next
-        self.task_id = turn
-        self.current = self.create_task(self.task_id)
+            turn_goal = self.next + 1
+        self.task_start = turn
+        self.task_goal = turn_goal
+        self.current = self.create_task(self.task_start, self.task_goal)
         return self.current
 
-    def create_task(self, turn):
-        dialog = '\n'.join([utt for utt in self.dialog[:turn] if utt is not None])
-        initial_blocks = self.structure_seq[turn - 1]
-        tid = min(turn + 1, len(self.structure_seq) - 1) if not self.full else -1
+    def create_task(self, turn_start, turn_goal):
+        dialog = '\n'.join([utt for utt in self.dialog[:turn_goal] if utt is not None])
+        initial_blocks = self.structure_seq[turn_start - 1]
+        tid = min(turn_goal, len(self.structure_seq) - 1) if not self.full else -1
         target_grid = self.structure_seq[tid]
         task = Task(
             dialog, target_grid=self.to_dense(target_grid),
@@ -160,7 +168,13 @@ class Subtasks(Tasks):
         return task
 
     def calc_reward(self, grid):
-        return self.current.calc_reward(grid)
+        right_placement, wrong_placement, done = self.current.calc_reward(grid)
+        if done and len(self.structure_seq) > self.task_goal:
+            self.task_goal += 1
+            self.current = self.create_task(self.task_start, self.task_goal)
+            self.current.prev_grid_size = 0
+            _, _, done = self.current.calc_reward(grid) # to initialize things properly
+        return right_placement, wrong_placement, done
 
     def set_task(self, task_id):
         self.task_id = task_id

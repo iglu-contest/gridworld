@@ -47,7 +47,7 @@ class World(object):
         self.placed = set()
 
     def build_zone(self, x, y, z, pad=0):
-        return -5 - pad <= x <= 5 + pad and -5 - pad <= z <= 5 + pad and -1 - pad <= y <= 8 + pad
+        return -5 - pad <= x <= 5 + pad and -5 - pad <= z <= 5 + pad and -1 - pad <= y < 8 + pad
 
     def _initialize(self):
         """ Initialize the world by placing all the blocks.
