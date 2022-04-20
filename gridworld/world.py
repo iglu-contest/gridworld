@@ -1,5 +1,5 @@
 from pyglet.gl import *
-
+from numba import jit
 
 from .utils import WHITE, GREY
 from .utils import FACES
@@ -47,13 +47,13 @@ class World(object):
         self.placed = set()
 
     def build_zone(self, x, y, z, pad=0):
-        return -5 - pad <= x <= 5 + pad and -5 - pad <= z <= 5 + pad and -1 - pad <= y <= 8 + pad
+        return -5 - pad <= x <= 5 + pad and -5 - pad <= z <= 5 + pad and -1 - pad <= y < 8 + pad
 
     def _initialize(self):
         """ Initialize the world by placing all the blocks.
 
         """
-        n = 30  # 1/2 width and height of world
+        n = 18  # 1/2 width and height of world
         s = 1  # step size
         y = 0  # initial y height
         for x in range(-n, n + 1, s):
@@ -124,7 +124,7 @@ class World(object):
         self.sectors.setdefault(sectorize(position), []).append(position)
         if self.exposed(position):
             self.show_block(position)
-        self.check_neighbors(position)
+        # self.check_neighbors(position)
         if self.initialized:
             self.placed.add(position)
 
@@ -143,7 +143,7 @@ class World(object):
         self.sectors[sectorize(position)].remove(position)
         if position in self.shown:
             self.hide_block(position)
-        self.check_neighbors(position)
+        # self.check_neighbors(position)
         if self.initialized:
             self.placed.remove(position)
 
@@ -154,6 +154,7 @@ class World(object):
         is added or removed.
 
         """
+        # TODO: remove this method
         x, y, z = position
         for dx, dy, dz in FACES:
             key = (x + dx, y + dy, z + dz)

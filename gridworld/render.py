@@ -4,14 +4,14 @@ from pyglet.graphics import Batch, TextureGroup
 from scipy.ndimage import gaussian_filter
 from pyglet import image
 import pyglet
-
+from filelock import FileLock
 import math
 import numpy as np
 import os
 from PIL import Image
 import gridworld
 
-from .utils import cube_vertices, cube_normals, id2texture
+from .utils import WHITE, GREY, cube_vertices, cube_normals, id2texture, id2top_texture
 
 
 def setup_fog():
@@ -63,12 +63,13 @@ class Renderer(Window):
         self.model.add_callback('on_remove', self.remove_block)
         self.batch = Batch()
         dir_path = os.path.dirname(gridworld.__file__)
-        Renderer.TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
-        np_texture = np.asarray(Image.open(Renderer.TEXTURE_PATH)).copy()
+        TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
+        np_texture = np.asarray(Image.open(TEXTURE_PATH)).copy()
         if kwargs['width'] <= 128:
             s = 1.5
             if kwargs['width'] <= 64:
                 s = 2
+            # TODO: create separate textures for low-res
             # for edge lines to look better in low resolution
             for i in range(4):
                 for j in range(4):
@@ -76,11 +77,13 @@ class Renderer(Window):
                         np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64], 
                         (s, s, 0), mode='nearest'
                     )
-            path = os.path.join(os.path.dirname(Renderer.TEXTURE_PATH), 'some.png')
-            Image.fromarray(np_texture).save(path)
+            path = os.path.join(os.path.dirname(TEXTURE_PATH), 'some.png')
+            with FileLock(f'/tmp/mylock'):
+                Image.fromarray(np_texture).save(path)
         else:
-            path = Renderer.TEXTURE_PATH
-        self.texture_group = TextureGroup(image.load(path).get_texture())
+            path = TEXTURE_PATH
+        with FileLock(f'/tmp/mylock'):
+            self.texture_group = TextureGroup(image.load(path).get_texture())
         self.overlay = False
         self._shown = {}
         self.label = pyglet.text.Label('', font_name='Arial', font_size=18,
@@ -156,13 +159,14 @@ class Renderer(Window):
 
     def add_block(self, position, texture_id, **kwargs):
         x, y, z = position
-        texture = id2texture[texture_id]
-        vertex_data = cube_vertices(x, y, z, 0.5)
-        normal_data = cube_normals(x, y, z)
+        top_only = texture_id in [WHITE, GREY]
+        texture = (id2top_texture if top_only else id2texture)[texture_id]
+        vertex_data = cube_vertices(x, y, z, 0.5, top_only=top_only)
+        normal_data = cube_normals(top_only=top_only)
         texture_data = list(texture)
         # create vertex list
         # FIXME Maybe `add_indexed()` should be used instead
-        self._shown[position] = self.batch.add(24, GL_QUADS, self.texture_group,
+        self._shown[position] = self.batch.add(4 if top_only else 24, GL_QUADS, self.texture_group,
             ('v3f/static', vertex_data),
             ('t2f/static', texture_data),
             ('n3f/static', normal_data)
