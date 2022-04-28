@@ -18,8 +18,8 @@ class Task:
                 for z in range(BUILD_ZONE_SIZE_Z):
                     self.target_grids[-1][:, z, BUILD_ZONE_SIZE_X - x - 1] \
                         = self.target_grids[-2][:, x, z]
-        # self.admissible = [[(0, 0)], [(0, 0)], [(0, 0)], [(0, 0)]]
-        # return
+        self.admissible = [[(0, 0)], [(0, 0)], [(0, 0)], [(0, 0)]]
+        return
         # (dx, dz) is admissible iff the translation of target grid by (dx, dz) preserve (== doesn't cut)
         # target structure within original (unshifted) target grid
         for i in range(4):

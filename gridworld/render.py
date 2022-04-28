@@ -119,7 +119,7 @@ class Renderer(Window):
         glViewport(0, 0, max(1, viewport[0]), max(1, viewport[1]))
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(120.0, width / float(height), 0.1, 30.0)
+        gluPerspective(90.0, width / float(height), 0.1, 30.0)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         x, y = self.agent.rotation
@@ -127,7 +127,7 @@ class Renderer(Window):
         glRotatef(-y, math.cos(math.radians(x)), 0, math.sin(math.radians(x)))
         x, y, z = self.agent.position
         glTranslatef(-x, -y, -z)
-        glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*4)(0.0,9,0.0,1))
+        glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*4)(2.0,8,0.0,1))
         glLightfv(GL_LIGHT0, GL_AMBIENT, (GLfloat*4)(1,1,1,1))
         glLightfv(GL_LIGHT0, GL_DIFFUSE, (GLfloat*4)(1.0,1.0,1.0,1))
         

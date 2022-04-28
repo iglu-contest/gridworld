@@ -32,6 +32,7 @@ class GridWorld(Env):
         self.wrong_placement = 0
         self.select_and_place = select_and_place
         self.discretize = discretize
+        self.starting_grid = []
         self.initial_position = (0, 0, 0)
         self.initial_rotation = (0, 0)
         if discretize:
@@ -67,7 +68,7 @@ class GridWorld(Env):
         self.do_render = render
         if render:
             self.renderer = Renderer(self.world, self.agent,
-                                     width=64, height=64,
+                                     width=512, height=512,
                                      caption='Pyglet', resizable=False)
             setup()
         else:
@@ -80,7 +81,7 @@ class GridWorld(Env):
             self.reset()
             self.world.deinit()
             self.renderer = Renderer(self.world, self.agent,
-                                     width=64, height=64,
+                                     width=512, height=512,
                                      caption='Pyglet', resizable=False)
             setup()
             self.do_render = True
@@ -96,8 +97,6 @@ class GridWorld(Env):
 
     def remove_block(self, position, build_zone=True):
         if self.world.initialized and build_zone:
-            # import pdb
-            # pdb.set_trace()
             x, y, z = position
             x += 5
             z += 5
@@ -110,7 +109,7 @@ class GridWorld(Env):
     def initialize_world(self, starting_grid, initial_poisition):
         self.starting_grid = starting_grid
         self.initial_position = tuple(initial_poisition[:3])
-        self.innitial_rotation = tuple(initial_poisition[3:])
+        self.initial_rotation = tuple(initial_poisition[3:])
         self.reset()
 
     def reset(self):
@@ -127,8 +126,9 @@ class GridWorld(Env):
         self.agent.inventory = [20 for _ in range(6)]
         for _, _, _, color in self.starting_grid:
             self.agent.inventory[color - 1] -= 1
+        pos = list(self.agent.position) + list(self.agent.rotation)
         obs = {
-            'agentPos': np.array([0., 0., 0., 0., 0.], dtype=np.float32),
+            'agentPos': np.array(pos, dtype=np.float32),
             'inventory': np.array(self.agent.inventory, dtype=np.float32),
             'compass': np.array([0.], dtype=np.float32),
         }

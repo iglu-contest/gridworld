@@ -113,11 +113,12 @@ def tex_coords(*side, top_only=False):
 WHITE = -1
 GREY = 0
 BLUE = 1
-GREEN = 2
-RED = 3
+YELLOW = 2
+GREEN = 3
 ORANGE = 4
 PURPLE = 5
-YELLOW = 6
+RED = 6
+
 
 id2texture = {
     WHITE: tex_coords(0, 0),
