@@ -21,6 +21,7 @@ class GridWorld(Env):
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
+        self.starting_grid = []
         self.task = Task('', target)
         self.step_no = 0
         self.right_placement_scale = right_placement_scale
@@ -55,7 +56,7 @@ class GridWorld(Env):
                 low=np.array([-8, -2, -8, -90, 0], dtype=np.float32),
                 high=np.array([8, 12, 8, 90, 360], dtype=np.float32),
                 shape=(5,)),
-            'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
+            'inventory': Box(low=0, high=190, shape=(6,), dtype=np.float32),
             'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
             'grid': Box(low=-1, high=7, shape=(9, 11, 11), dtype=np.int32),
         }
@@ -117,14 +118,15 @@ class GridWorld(Env):
         self.step_no = 0
         for block in set(self.world.placed):
             self.world.remove_block(block)
-        for x,y,z, bid in self.starting_grid:
-            self.world.add_block((x, y, z), bid)
+        if len(self.starting_grid) > 0:
+            for x,y,z, bid in self.starting_grid:
+                self.world.add_block((x, y, z), bid)
         self.agent.position = self.initial_position
         self.agent.rotation = self.initial_rotation
         self.max_int = self.task.maximal_intersection(self.grid)
         self.prev_grid_size = len(self.grid.nonzero()[0])
         self.agent.prev_position = self.agent.position
-        self.agent.inventory = [20 for _ in range(6)]
+        self.agent.inventory = [190 for _ in range(6)]
         for _, _, _, color in self.starting_grid:
             self.agent.inventory[color - 1] -= 1
         obs = {
