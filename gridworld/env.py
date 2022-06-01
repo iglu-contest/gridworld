@@ -32,6 +32,8 @@ class GridWorld(Env):
         self.wrong_placement = 0
         self.select_and_place = select_and_place
         self.discretize = discretize
+        self.initial_position = (0, 0, 0)
+        self.initial_rotation = (0, 0)
         if discretize:
             self.parse = self.parse_low_level_action
             self.action_space = Discrete(18)
@@ -95,8 +97,6 @@ class GridWorld(Env):
 
     def remove_block(self, position, build_zone=True):
         if self.world.initialized and build_zone:
-            # import pdb
-            # pdb.set_trace()
             x, y, z = position
             x += 5
             z += 5
@@ -110,19 +110,23 @@ class GridWorld(Env):
         self.task.next = turn
         self.task.full = full
 
+    def initialize_world(self, starting_grid, initial_poisition):
+        self.starting_grid = starting_grid
+        self.initial_position = tuple(initial_poisition[:3])
+        self.innitial_rotation = tuple(initial_poisition[3:])
+        self.reset()
+
     def reset(self):
-        # if self.name == 'eval':
-        #     import pdb
-        #     pdb.set_trace()
         self.step_no = 0
         self.task.sample()
         for block in set(self.world.placed):
             self.world.remove_block(block)
         for x,y,z, bid in self.task.current.starting_grid:
             self.world.add_block((x, y, z), bid)
-        self.agent.position = (0, 1, 3)
-        self.agent.prev_position = (0, 0, 0)
-        self.agent.rotation = (0, 0)
+        self.agent.position = self.initial_position
+        self.agent.rotation = self.initial_rotation
+        self.max_int = self.task.maximal_intersection(self.grid)
+        self.prev_grid_size = len(self.grid.nonzero()[0])
         self.agent.inventory = [20 for _ in range(6)]
         for _, _, _, color in self.task.current.starting_grid:
             self.agent.inventory[color - 1] -= 1
@@ -133,7 +137,6 @@ class GridWorld(Env):
         }
         obs['grid'] = self.grid.copy().astype(np.int32)
         obs['target_grid'] = self.task.current.target_grid.copy().astype(np.int32)
-        # print('>>>>>>>.', obs['grid'].nonzero())
         return obs
 
     def render(self,):
@@ -198,11 +201,7 @@ class GridWorld(Env):
         return strafe, jump, inventory, camera, remove, add
 
     def step(self, action):
-        # print(self.agent.position, self.agent.rotation, action)
-        # print('>>>>>>>>>>')
         self.step_no += 1
-        #old_grid = self.grid.copy()
-        self.agent.prev_position = self.agent.position
         strafe, jump, inventory, camera, remove, add = self.parse(action)
         if self.select_and_place and inventory is not None:
             add = True
@@ -222,21 +221,12 @@ class GridWorld(Env):
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
         obs['grid'] = self.grid.copy().astype(np.int32)
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
-        #diff = len((self.grid != old_grid).nonzero()[0])
-        #if diff > 1:
-        #    raise ValueError('Impossible State!')
-        # print('>>>>>>>.', obs['grid'].nonzero())
-        # if self.name == 'eval':
-        #     import pdb
-        #     pdb.set_trace()
         right_placement, wrong_placement, done = self.task.calc_reward(self.grid)
         done = done or (self.step_no == self.max_steps)
         if right_placement == 0:
             reward = wrong_placement * self.wrong_placement_scale
         else:
             reward = right_placement * self.right_placement_scale
-        # done = self.step_no == self.max_steps
-        # reward = x - self.agent.prev_position[0] + z - self.agent.prev_position[2]
         obs['target_grid'] = self.task.current.target_grid.copy().astype(np.int32)
         return obs, reward, done, {}
 
