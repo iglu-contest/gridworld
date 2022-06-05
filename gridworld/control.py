@@ -1,12 +1,13 @@
 import math
 from .utils import WHITE, GREY, BLUE, FACES, id2texture
 from .utils import FLYING_SPEED, WALKING_SPEED, GRAVITY, TERMINAL_VELOCITY, PLAYER_HEIGHT, JUMP_SPEED
-from .utils import sectorize, normalize
+from .utils import normalize, PLAYER_HEIGHT
 
 from typing import Optional
 
 
 class Agent(object):
+    PAD = 0.25
     def __init__(self, world, sustain=False) -> None:
         # When flying gravity has no effect and speed is increased.
         self.flying = False
@@ -30,13 +31,8 @@ class Agent(object):
         # The vertical plane rotation ranges from -90 (looking straight down) to
         # 90 (looking straight up). The horizontal rotation range is unbounded.
         self.rotation = (0, 0)
-
-        # Which sector the player is currently in.
-        self.sector = None
-
         # The crosshairs at the center of the screen.
         self.reticle = None
-
         # actions are long-lasting switches
         self.sustain = sustain
 
@@ -123,10 +119,6 @@ class Agent(object):
             The change in time since the last call.
 
         """
-        sector = sectorize(self.position)
-        if sector != self.sector:
-            self.world.change_sectors(self.sector, sector)
-            self.sector = sector
         m = self.time_int_steps
         dt = min(dt, 0.2)
         for _ in range(m):
@@ -196,7 +188,7 @@ class Agent(object):
         # have to count as a collision. If 0, touching terrain at all counts as
         # a collision. If .49, you sink into the ground, as if walking through
         # tall grass. If >= .5, you'll fall through the ground.
-        pad = 0.25
+        pad = Agent.PAD
         p = list(position)
         np = normalize(position)
         for face in FACES:  # check all surrounding blocks
@@ -231,14 +223,13 @@ class Agent(object):
             if previous:
                 if self.inventory[self.active_block - 1] > 0 and self.world.build_zone(*previous): 
                     # # block under themself
-                    # ix, iy, iz = normalize(self.position)
-                    # x,y,z = self.position
-                    # # TODO: make padding global
-                    # pad = 0.25
-                    # if (ix, iy, iz) == previous \
-                    #     and (x - ix < pad or x - ix > 1 - pad) \
-                    #     and (z - iz < pad or z - iz > 1 - pad):
-                    if True:
+                    x, y, z = self.position
+                    y = y - (PLAYER_HEIGHT - 1) + Agent.PAD
+                    bx, by, bz = previous
+                    bx -= 0.5
+                    bz -= 0.5
+                    if not (bx <= x <= bx + 1 and bz <= z <= bz + 1 
+                       and (by <= y <= by + 1 or by <= (y + 1) <= by + 1)):
                         self.world.add_block(previous, self.active_block)
                         self.inventory[self.active_block - 1] -= 1
         if remove and block:
