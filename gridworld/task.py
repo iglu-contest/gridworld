@@ -1,5 +1,3 @@
-from posix import listdir
-
 import numpy as np
 
 BUILD_ZONE_SIZE_X = 11
@@ -8,7 +6,7 @@ BUILD_ZONE_SIZE = 9, 11, 11
 
 
 class Task:
-    def __init__(self, chat, target_grid, starting_grid=None, full_grid=None):
+    def __init__(self, chat, target_grid, starting_grid=None, full_grid=None, invariant=True):
         self.chat = chat
         self.starting_grid = starting_grid
         self.full_grid = full_grid
@@ -37,21 +35,26 @@ class Task:
                             = full_grids[-2][:, x, z]
         # (dx, dz) is admissible iff the translation of target grid by (dx, dz) preserve (== doesn't cut)
         # target structure within original (unshifted) target grid
-        self.admissible = [[(0,0)]]
-        return
-        for i in range(4):
-            if full_grid is not None:
-                grid = full_grids[i]
-            else:
-                grid = self.target_grids[i]
-            for dx in range(-BUILD_ZONE_SIZE_X + 1, BUILD_ZONE_SIZE_X):
-                for dz in range(-BUILD_ZONE_SIZE_Z + 1, BUILD_ZONE_SIZE_Z):
-                    sls_target = grid[:, max(dx, 0):BUILD_ZONE_SIZE_X + min(dx, 0),
-                                         max(dz, 0):BUILD_ZONE_SIZE_Z + min(dz, 0):]
-                    if (sls_target != 0).sum().item() == self.full_size:
-                        self.admissible[i].append((dx, dz))
+        if not invariant:
+            self.admissible = [[(0,0)]]
+        else:
+            for i in range(4):
+                if full_grid is not None:
+                    grid = full_grids[i]
+                else:
+                    grid = self.target_grids[i]
+                for dx in range(-BUILD_ZONE_SIZE_X + 1, BUILD_ZONE_SIZE_X):
+                    for dz in range(-BUILD_ZONE_SIZE_Z + 1, BUILD_ZONE_SIZE_Z):
+                        sls_target = grid[:, max(dx, 0):BUILD_ZONE_SIZE_X + min(dx, 0),
+                                            max(dz, 0):BUILD_ZONE_SIZE_Z + min(dz, 0):]
+                        if (sls_target != 0).sum().item() == self.full_size:
+                            self.admissible[i].append((dx, dz))
 
-    def sample(self):
+    def reset(self):
+        """
+        placeholder method to have uniform interface with `Tasks` class.
+        Resets all fields at initialization of the new episode.
+        """
         if self.starting_grid is not None:
             self.max_int = self.maximal_intersection(Tasks.to_dense(self.starting_grid))
         else:
@@ -61,7 +64,13 @@ class Task:
         self.wrong_placement = 0
         return self
 
-    def calc_reward(self, grid):
+    def step_intersection(self, grid):
+        """
+        Calculates the difference between the maximal intersection at previous step and the current one.
+        Note that the method updates object fields to save the grid size.
+
+        Args (grid): current grid
+        """
         grid_size = (grid != 0).sum().item()
         wrong_placement = (self.prev_grid_size - grid_size)
         max_int = self.maximal_intersection(grid) if wrong_placement != 0 else self.max_int
@@ -115,7 +124,7 @@ class Tasks:
             blocks = new_blocks
         return blocks
 
-    def sample(self) -> Task:
+    def reset(self) -> Task:
         return NotImplemented
 
     def set_task(self, task_id):
@@ -129,19 +138,25 @@ class Tasks:
         
 
 class Subtasks(Tasks):
-    """ Subtasks object represents a staged task where subtasks have separate segments
+    """ Subtasks object represents a staged task where subtasks represent separate segments
     """
-    def __init__(self, dialog, structure_seq) -> None:
+    def __init__(self, dialog, structure_seq, invariant=False) -> None:
         self.dialog = dialog
+        self.invariant = invariant
         self.structure_seq = structure_seq
         self.next = None
         self.full = False
         self.task_start = 0
         self.task_goal = 0
         self.full_structure = self.to_dense(self.structure_seq[-1])
-        self.current = self.sample()
+        self.current = self.reset()
 
-    def sample(self):
+    def reset(self):
+        """
+        Randomly selects a random task within the task sequence. 
+        Each task is sampled with some non-trilial context (prior dialogs and
+        starting structure) and one utterance goal instruction
+        """
         if self.next is None:
             turn = np.random.choice(len(self.structure_seq) - 1) + 1
             turn_goal = turn + 1
@@ -153,7 +168,12 @@ class Subtasks(Tasks):
         self.current = self.create_task(self.task_start, self.task_goal)
         return self.current
 
-    def create_task(self, turn_start, turn_goal):
+    def create_task(self, turn_start: int, turn_goal: int):
+        """
+        Returns a task with context defined by `turn_start` and goal defined 
+        by `turn_goal`
+
+        """
         dialog = '\n'.join([utt for utt in self.dialog[:turn_goal] if utt is not None])
         initial_blocks = self.structure_seq[turn_start - 1]
         tid = min(turn_goal, len(self.structure_seq) - 1) if not self.full else -1
@@ -164,16 +184,19 @@ class Subtasks(Tasks):
             full_grid=self.full_structure
         )
         # To properly init max_int and prev_grid_size fields
-        task.sample()
+        task.reset()
         return task
 
-    def calc_reward(self, grid):
-        right_placement, wrong_placement, done = self.current.calc_reward(grid)
+    def step_intersection(self, grid):
+        """
+
+        """
+        right_placement, wrong_placement, done = self.current.step_intersection(grid)
         if done and len(self.structure_seq) > self.task_goal:
             self.task_goal += 1
             self.current = self.create_task(self.task_start, self.task_goal)
             self.current.prev_grid_size = 0
-            _, _, done = self.current.calc_reward(grid) # to initialize things properly
+            _, _, done = self.current.step_intersection(grid) # to initialize things properly
         return right_placement, wrong_placement, done
 
     def set_task(self, task_id):

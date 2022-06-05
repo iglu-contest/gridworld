@@ -20,7 +20,6 @@ class GridWorld(Env):
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
-        # self.task = Task('', target)
         self.task = Subtasks('', target)
         self.step_no = 0
         self.right_placement_scale = right_placement_scale
@@ -118,7 +117,7 @@ class GridWorld(Env):
 
     def reset(self):
         self.step_no = 0
-        self.task.sample()
+        self.task.reset()
         for block in set(self.world.placed):
             self.world.remove_block(block)
         for x,y,z, bid in self.task.current.starting_grid:
@@ -221,7 +220,7 @@ class GridWorld(Env):
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
         obs['grid'] = self.grid.copy().astype(np.int32)
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
-        right_placement, wrong_placement, done = self.task.calc_reward(self.grid)
+        right_placement, wrong_placement, done = self.task.step_intersection(self.grid)
         done = done or (self.step_no == self.max_steps)
         if right_placement == 0:
             reward = wrong_placement * self.wrong_placement_scale
