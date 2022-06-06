@@ -3,7 +3,7 @@ pyglet.options["headless"] = True
 from gridworld.world import World
 from gridworld.control import Agent
 from gridworld.render import Renderer, setup
-from gridworld.task import Task, Subtasks
+from gridworld.tasks.task import Task, Subtasks
 
 from gym.spaces import Dict, Box, Discrete
 from gym import Env, Wrapper
