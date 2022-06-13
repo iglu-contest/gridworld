@@ -142,8 +142,8 @@ class IGLUDataset(Tasks):
     def __iter__(self):
         for task_id, tasks in self.tasks.items():
             for j, task in enumerate(tasks):
-                for subtask in task:
-                    yield task_id, j, subtask
+                for k, subtask in enumerate(task):
+                    yield task_id, j, k, subtask
 
 
 iglu_data = IGLUDataset()
