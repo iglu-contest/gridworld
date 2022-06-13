@@ -7,6 +7,7 @@ from tqdm import tqdm
 PUBLIC_SAS_TOKEN = "sp=rl&st=2021-11-01T16:22:02Z&se=2022-02-03T01:22:02Z&spr=https&sv=2020-08-04&sr=c&sig=Nz2bOp8rRWEwq1E7Ycg5B3VeTBWld1%2FLVAgrhtrDo%2Fs%3D"
 
 def download(url, destination, data_prefix):
+    os.makedirs(data_prefix, exist_ok=True)
     r = requests.get(url, stream=True)
     CHUNK_SIZE = 1024
     total_length = int(r.headers.get('content-length'))

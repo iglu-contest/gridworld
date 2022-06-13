@@ -111,6 +111,10 @@ class GridWorld(Env):
 
     def set_task(self, task: Task):
         """
+        Assigns provided task into the environment. On each .reset, the env
+        Queries the .reset method for the task object. This method should drop
+        the task state to the initial one.
+        Note that the env can only work with non-None task or task generator.
         """
         if self._task_generator is not None:
             warnings.warn("The .set_task method has no effect with an initialized tasks generator. "
@@ -119,6 +123,11 @@ class GridWorld(Env):
         self.reset()
 
     def set_task_generator(self, task_generator: Tasks):
+        """
+        Sets task generator for the current environment. On each .reset, the environment
+        queries the .reset method of generator which returns the next task according to the generator.
+        Note that the env can only work with non-None task or task generator.
+        """
         self._task_generator = task_generator
         self.reset()
 

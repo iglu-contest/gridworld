@@ -16,9 +16,9 @@ BUILD_ZONE_SIZE = 9, 11, 11
 
 
 if 'IGLU_DATA_PATH' in os.environ:
-    DATA_PREFIX = os.path.join(os.environ['IGLU_DATA_PATH'], 'data')
+    DATA_PREFIX = os.path.join(os.environ['IGLU_DATA_PATH'], 'data', 'cdm')
 else:
-    DATA_PREFIX = os.path.join(os.environ['HOME'], '.iglu', 'data')
+    DATA_PREFIX = os.path.join(os.environ['HOME'], '.iglu', 'data', 'cdm')
 
 
 class CDMDataset:
@@ -38,7 +38,7 @@ class CDMDataset:
     Italy. Association for Computational Linguistics.
     """
     ALL = {}
-    URL = "https://storage.googleapis.com/iglu_dataset/cdm.zip"
+    URL = "https://iglumturkstorage.blob.core.windows.net/public-data/cdm_dataset.zip"
     block_map = {
         'air': 0,
         'cwc_minecraft_blue_rn': 1,

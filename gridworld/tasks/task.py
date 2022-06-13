@@ -146,9 +146,10 @@ class Tasks:
 class Subtasks(Tasks):
     """ Subtasks object represents a staged task where subtasks represent separate segments
     """
-    def __init__(self, dialog, structure_seq, invariant=False) -> None:
+    def __init__(self, dialog, structure_seq, invariant=False, progressive=True) -> None:
         self.dialog = dialog
         self.invariant = invariant
+        self.progressive = progressive
         self.structure_seq = structure_seq
         self.next = None
         self.full = False
@@ -219,7 +220,7 @@ class Subtasks(Tasks):
 
         """
         right_placement, wrong_placement, done = self.current.step_intersection(grid)
-        if done and len(self.structure_seq) > self.task_goal:
+        if done and len(self.structure_seq) > self.task_goal and self.progressive:
             self.task_goal += 1
             self.current = self.create_task(self.task_start, self.task_goal)
             self.current.prev_grid_size = 0
