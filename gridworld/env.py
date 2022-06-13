@@ -1,9 +1,10 @@
 import pyglet
-pyglet.options["headless"] = True
+import warnings
+# pyglet.options["headless"] = True
 from gridworld.world import World
 from gridworld.control import Agent
 from gridworld.render import Renderer, setup
-from gridworld.tasks.task import Task, Subtasks
+from gridworld.tasks.task import Task, Tasks
 
 from gym.spaces import Dict, Box, Discrete
 from gym import Env, Wrapper
@@ -15,20 +16,23 @@ from uuid import uuid4
 
 class GridWorld(Env):
     def __init__(
-            self, target, render=True, max_steps=250, select_and_place=False,
-            discretize=False, right_placement_scale=1., wrong_placement_scale=0.1, name='') -> None:
+            self, render=True, max_steps=250, select_and_place=False,
+            discretize=False, right_placement_scale=1., wrong_placement_scale=0.1, 
+            render_size=(64, 64), name='') -> None:
         self.world = World()
         self.agent = Agent(self.world, sustain=False)
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
-        self.task = Subtasks('', target)
+        self._task = None
+        self._task_generator = None
         self.step_no = 0
         self.right_placement_scale = right_placement_scale
         self.wrong_placement_scale = wrong_placement_scale
         self.max_steps = max_steps
-        self.world.add_callback('on_add', self.add_block)
-        self.world.add_callback('on_remove', self.remove_block)
+        self.world.add_callback('on_add', self._add_block)
+        self.world.add_callback('on_remove', self._remove_block)
         self.right_placement = 0
         self.wrong_placement = 0
+        self.render_size = render_size
         self.select_and_place = select_and_place
         self.discretize = discretize
         self.initial_position = (0, 0, 0)
@@ -67,26 +71,26 @@ class GridWorld(Env):
         self.do_render = render
         if render:
             self.renderer = Renderer(self.world, self.agent,
-                                     width=64, height=64,
+                                     width=self.render_size[0], height=self.render_size[1],
                                      caption='Pyglet', resizable=False)
             setup()
         else:
             self.renderer = None
             self.world._initialize()
-        self.reset()
+        # self.reset()
 
     def enable_renderer(self):
         if self.renderer is None:
             self.reset()
             self.world.deinit()
             self.renderer = Renderer(self.world, self.agent,
-                                     width=64, height=64,
+                                     width=self.render_size[0], height=self.render_size[0],
                                      caption='Pyglet', resizable=False)
             setup()
             self.do_render = True
             # self.observation_space['pov'] = Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
 
-    def add_block(self, position, kind, build_zone=True):
+    def _add_block(self, position, kind, build_zone=True):
         if self.world.initialized and build_zone:
             x, y, z = position
             x += 5
@@ -94,7 +98,7 @@ class GridWorld(Env):
             y += 1
             self.grid[y, x, z] = kind
 
-    def remove_block(self, position, build_zone=True):
+    def _remove_block(self, position, build_zone=True):
         if self.world.initialized and build_zone:
             x, y, z = position
             x += 5
@@ -105,37 +109,57 @@ class GridWorld(Env):
                                  f'grid state: {self.grid.nonzero()[0]};')
             self.grid[y, x, z] = 0
 
-    def set_task(self, turn, full=False):
-        self.task.next = turn
-        self.task.full = full
+    def set_task(self, task: Task):
+        """
+        """
+        if self._task_generator is not None:
+            warnings.warn("The .set_task method has no effect with an initialized tasks generator. "
+                          "Drop it using .set_tasks_generator(None) after calling .set_task")
+        self._task = task
+        self.reset()
+
+    def set_task_generator(self, task_generator: Tasks):
+        self._task_generator = task_generator
+        self.reset()
 
     def initialize_world(self, starting_grid, initial_poisition):
         self.starting_grid = starting_grid
         self.initial_position = tuple(initial_poisition[:3])
-        self.innitial_rotation = tuple(initial_poisition[3:])
+        self.initial_rotation = tuple(initial_poisition[3:])
         self.reset()
 
     def reset(self):
+        if self._task is None:
+            if self._task_generator is None:
+                raise ValueError('Task is not initialized! Initialize task before working with'
+                                ' the environment using .set_task method OR set tasks distribution using '
+                                '.set_task_generator method')
+            else:
+                # yield new task
+                self._task = self._task_generator.reset()
+                self.starting_grid = self._task.starting_grid
         self.step_no = 0
-        self.task.reset()
+        self._task.reset()
         for block in set(self.world.placed):
             self.world.remove_block(block)
-        for x,y,z, bid in self.task.current.starting_grid:
-            self.world.add_block((x, y, z), bid)
+        if self.starting_grid is not None:
+            for x,y,z, bid in self.starting_grid:
+                self.world.add_block((x, y, z), bid)
         self.agent.position = self.initial_position
         self.agent.rotation = self.initial_rotation
-        self.max_int = self.task.maximal_intersection(self.grid)
+        self.max_int = self._task.maximal_intersection(self.grid)
         self.prev_grid_size = len(self.grid.nonzero()[0])
         self.agent.inventory = [20 for _ in range(6)]
-        for _, _, _, color in self.task.current.starting_grid:
-            self.agent.inventory[color - 1] -= 1
+        if self.starting_grid is not None:
+            for _, _, _, color in self.starting_grid:
+                self.agent.inventory[color - 1] -= 1
         obs = {
             'agentPos': np.array([0., 0., 0., 0., 0.], dtype=np.float32),
             'inventory': np.array(self.agent.inventory, dtype=np.float32),
             'compass': np.array([0.], dtype=np.float32),
         }
         obs['grid'] = self.grid.copy().astype(np.int32)
-        obs['target_grid'] = self.task.current.target_grid.copy().astype(np.int32)
+        obs['target_grid'] = self._task.current.target_grid.copy().astype(np.int32)
         return obs
 
     def render(self,):
@@ -200,6 +224,13 @@ class GridWorld(Env):
         return strafe, jump, inventory, camera, remove, add
 
     def step(self, action):
+        if self._task is None:
+            if self._task_generator is None:
+                raise ValueError('Task is not initialized! Initialize task before working with'
+                                ' the environment using .set_task method OR set tasks distribution using '
+                                '.set_task_generator method')
+            else:
+                raise ValueError('Task is not initialized! Run .reset() first.')
         self.step_no += 1
         strafe, jump, inventory, camera, remove, add = self.parse(action)
         if self.select_and_place and inventory is not None:
@@ -220,13 +251,13 @@ class GridWorld(Env):
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
         obs['grid'] = self.grid.copy().astype(np.int32)
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
-        right_placement, wrong_placement, done = self.task.step_intersection(self.grid)
+        right_placement, wrong_placement, done = self._task.step_intersection(self.grid)
         done = done or (self.step_no == self.max_steps)
         if right_placement == 0:
             reward = wrong_placement * self.wrong_placement_scale
         else:
             reward = right_placement * self.right_placement_scale
-        obs['target_grid'] = self.task.current.target_grid.copy().astype(np.int32)
+        obs['target_grid'] = self._task.current.target_grid.copy().astype(np.int32)
         return obs, reward, done, {}
 
 import cv2
@@ -394,7 +425,7 @@ class SizeReward(Wrapper):
 
 def create_env(
         visual=True, discretize=True, size_reward=True, select_and_place=True,
-        log=False, right_placement_scale=1,
+        log=False, right_placement_scale=1, render_size=(64, 64),
         wrong_placement_scale=0.1, name=''
     ):
     # target = np.zeros((9, 11, 11), dtype=np.int32)
@@ -459,9 +490,10 @@ def create_env(
     print(len(target))
     # print('steps!')
     env = GridWorld(
-        target, render=visual, select_and_place=select_and_place,
+        render=visual, select_and_place=select_and_place,
         discretize=discretize, right_placement_scale=right_placement_scale,
-        wrong_placement_scale=wrong_placement_scale, name=name
+        wrong_placement_scale=wrong_placement_scale, name=name,
+        render_size=render_size
     )
     # if visual:
     #     env = Visual(env)
@@ -470,6 +502,6 @@ def create_env(
     if log:
         env = Logged(env)
     env = Actions(env)
-    env = debug(env)
+    # env = debug(env)
     # print(env.action_space)
     return env

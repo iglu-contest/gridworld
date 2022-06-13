@@ -117,7 +117,7 @@ class Tasks:
         if isinstance(blocks, np.ndarray):
             idx = blocks.nonzero()
             types = [blocks[i] for i in zip(*idx)]
-            blocks = [(*i, t) for i, t in zip(idx, types)]
+            blocks = [(*i, t) for *i, t in zip(*idx, types)]
             new_blocks = []
             for x, y, z, bid in blocks:
                 new_blocks.append((x - BUILD_ZONE_SIZE_X // 2, y - 1, z - BUILD_ZONE_SIZE_Z // 2, bid))
@@ -125,6 +125,12 @@ class Tasks:
         return blocks
 
     def reset(self) -> Task:
+        return NotImplemented
+    
+    def __len__(self) -> int:
+        return NotImplemented
+
+    def __iter__(self):
         return NotImplemented
 
     def set_task(self, task_id):
@@ -151,6 +157,9 @@ class Subtasks(Tasks):
         self.full_structure = self.to_dense(self.structure_seq[-1])
         self.current = self.reset()
 
+    def __getattr__(self, name):
+        return getattr(self.current, name)
+
     def reset(self):
         """
         Randomly selects a random task within the task sequence. 
@@ -158,7 +167,10 @@ class Subtasks(Tasks):
         starting structure) and one utterance goal instruction
         """
         if self.next is None:
-            turn = np.random.choice(len(self.structure_seq) - 1) + 1
+            if len(self.structure_seq) == 1:
+                turn = 0
+            else:
+                turn = np.random.choice(len(self.structure_seq))
             turn_goal = turn + 1
         else:
             turn = self.next
@@ -167,6 +179,13 @@ class Subtasks(Tasks):
         self.task_goal = turn_goal
         self.current = self.create_task(self.task_start, self.task_goal)
         return self.current
+    
+    def __len__(self) -> int:
+        return len(self.structure_seq)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self.create_task(i - 1, i)
 
     def create_task(self, turn_start: int, turn_goal: int):
         """
@@ -174,8 +193,16 @@ class Subtasks(Tasks):
         by `turn_goal`
 
         """
-        dialog = '\n'.join([utt for utt in self.dialog[:turn_goal] if utt is not None])
-        initial_blocks = self.structure_seq[turn_start - 1]
+        dialog = ''
+        for turn in self.dialog[:turn_goal + 1]:
+            if isinstance(turn, list):
+                turn = '\n'.join(turn)
+            dialog += '\n' + turn if len(dialog) > 0 else turn
+        # dialog = '\n'.join([utt for utt in self.dialog[:turn_goal] if utt is not None])
+        if turn_start == -1:
+            initial_blocks = []
+        else:
+            initial_blocks = self.structure_seq[turn_start]
         tid = min(turn_goal, len(self.structure_seq) - 1) if not self.full else -1
         target_grid = self.structure_seq[tid]
         task = Task(
