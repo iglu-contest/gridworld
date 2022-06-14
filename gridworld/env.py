@@ -154,6 +154,17 @@ class GridWorld(Env):
         self.initial_rotation = tuple(initial_poisition[3:])
         self.reset()
 
+    @property
+    def task(self):
+        if self._task is None:
+            if self._task_generator is None:
+                raise ValueError('Task is not initialized! Initialize task before working with'
+                                ' the environment using .set_task method OR set tasks distribution using '
+                                '.set_task_generator method')
+            self._task = self._task_generator.reset()
+            self.starting_grid = self._task.starting_grid
+        return self._task
+
     def reset(self):
         if self._task is None:
             if self._task_generator is None:

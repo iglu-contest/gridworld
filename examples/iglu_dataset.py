@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, '..')
 import gym
 import gridworld
 from gridworld.data import IGLUDataset
@@ -9,23 +11,29 @@ print(f'total sessions: {len(sum(iglu_dataset.tasks.values(), []))}')
 print(f'total total RL tasks: {sum(len(sess.structure_seq) for sess in sum(iglu_dataset.tasks.values(), []))}')
 
 env = gym.make('IGLUGridworldVector-v0')
-env.set_tasks_generator(iglu_dataset)
+env.set_task_generator(iglu_dataset)
 
 obs = env.reset()
 # get task info
-print(env._task.chat)
+print('Dataset sample:\n******')
+print(env.task.chat)
+print('******')
+print('Dataset sample:\n******')
 obs = env.reset()
 # here should be different task
-print(env._task.chat)
+print(env.task.chat)
+print('******')
 
 # drop task generator and set and individual task
-env.set_tasks_generator(None)
+env.set_task_generator(None)
 # without line above, the .set_task will have no effect
 # you should call .set_tasks_generator(None) only after 
 # setting task generator to any non trivial value
+print('Task sample:\n******')
 env.set_task(iglu_dataset.tasks['c118'][0])
 env.reset()
-print(env._task.chat)
+print(env.task.chat)
+print('******')
 
 # interaction with this env will happen such that once the sub-goal is 
 # reached, the env internally switches to a new goal until the last one is solved.

@@ -25,7 +25,7 @@ class CDMDataset:
     """
     Dataset from paper Collaborative dialogue in Minecraft [1]. 
 
-    Contains 156 structures of blocks, 509 game sessions (several game sessions per
+    Contains 156 structures of blocks, ~550 game sessions (several game sessions per
     structure), 15k utterances. 
 
     Note that this dataset cannot split the collaboration into instructions since 
@@ -49,7 +49,7 @@ class CDMDataset:
         'cwc_minecraft_red_rn': 6,
     }
     def __init__(self, task_kwargs=None):
-        self.index = None
+        self.task_index = None
         if task_kwargs is None:
             task_kwargs = {}
         self._load_data(
@@ -58,16 +58,16 @@ class CDMDataset:
         self.task_kwargs = task_kwargs
         self.tasks = defaultdict(list)
         self.current = None
-        for task_id, task_sessions in self.index.groupby('structure_id'):
+        for task_id, task_sessions in self.task_index.groupby('structure_id'):
             if len(task_sessions) == 0:
                 continue
             for _, session in task_sessions.iterrows():
                 task_path = os.path.join(DATA_PREFIX, session.group, 'logs', session.session_id)
                 task = Task(*self._parse_task(task_path, task_id), **self.task_kwargs)
-                self.tasks[task_id].append(task)
+                self.tasks[task_id.lower()].append(task)
 
     def reset(self):
-        sample = np.random.choice(len(self.tasks))
+        sample = np.random.choice(list(self.tasks.keys()))
         sess_id = np.random.choice(len(self.tasks[sample]))
         self.current = self.tasks[sample][sess_id]
         return self.current
@@ -94,6 +94,8 @@ class CDMDataset:
         path = os.path.join(DATA_PREFIX, 'data.zip')
         done = len(list(filter(lambda x: x.startswith('data-'), os.listdir(DATA_PREFIX)))) == 16
         if done and not force_download:
+            self.task_index = pd.read_csv(os.path.join(DATA_PREFIX, 'index.csv'))
+            shutil.rmtree(path, ignore_errors=True)
             return
         if force_download:
             for dir_ in os.listdir(DATA_PREFIX):

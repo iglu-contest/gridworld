@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import pandas as pd
 import numpy as np
 from collections import defaultdict
@@ -106,7 +107,9 @@ class IGLUDataset(Tasks):
         dialogs = pd.read_csv(f'{DATA_PREFIX}/dialogs.csv')
         self.tasks = defaultdict(list)
         self.parse_tasks(dialogs, DATA_PREFIX)
-        pass
+    
+    def process(self, s):
+        return re.sub(r'\$+', '\n', s)
     
     def parse_tasks(self, dialogs, path):
         for sess_id, gr in dialogs.groupby('PartitionKey'):
@@ -120,12 +123,12 @@ class IGLUDataset(Tasks):
                 if row.StepId % 2 == 1:
                     if isinstance(row.instruction, str):
                         utt_seq.append([])
-                        utt_seq[-1].append(row.instruction)
+                        utt_seq[-1].append(f'<Architect> {self.process(row.instruction)}')
                     elif isinstance(row.Answer4ClarifyingQuestion, str):
-                        utt_seq[-1].append(row.Answer4ClarifyingQuestion)
+                        utt_seq[-1].append(f'<Architect> {self.process(row.Answer4ClarifyingQuestion)}')
                 else:
                     if isinstance(row.ClarifyingQuestion, str):
-                        utt_seq[-1].append(row.ClarifyingQuestion)
+                        utt_seq[-1].append(f'<Builder> {self.process(row.ClarifyingQuestion)}')
                         continue
                     blocks.append([])
                     curr_step = f'{path}/builder-data/{sess_id}/step-{row.StepId}'

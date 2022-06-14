@@ -9,15 +9,15 @@ PUBLIC_SAS_TOKEN = "sp=rl&st=2021-11-01T16:22:02Z&se=2022-02-03T01:22:02Z&spr=ht
 def download(url, destination, data_prefix):
     os.makedirs(data_prefix, exist_ok=True)
     r = requests.get(url, stream=True)
-    CHUNK_SIZE = 1024
+    CHUNK_SIZE = 1048576
     total_length = int(r.headers.get('content-length'))
     with open(destination, "wb") as f:
         with tqdm(desc=f'downloading task dataset into {data_prefix}', 
-                  total=(total_length // 1024) + 1) as pbar:
+                  total=(total_length // CHUNK_SIZE) + 1) as pbar:
             for chunk in r.iter_content(chunk_size=CHUNK_SIZE): 
                 if chunk: # filter out keep-alive new chunks
                     f.write(chunk)
-                    pbar.update(CHUNK_SIZE // CHUNK_SIZE)
+                    pbar.update(1)
 
 if 'IGLU_SAS_TOKEN' not in os.environ:
     os.environ['IGLU_SAS_TOKEN'] = PUBLIC_SAS_TOKEN
