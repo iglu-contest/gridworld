@@ -1,5 +1,3 @@
-import sys
-sys.path.insert(0, '..')
 import gym
 import gridworld
 from gridworld.data import IGLUDataset
