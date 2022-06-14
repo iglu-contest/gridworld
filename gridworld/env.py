@@ -48,6 +48,7 @@ class GridWorld(Env):
         self.target_in_obs = target_in_obs
         self.vector_state = vector_state
         self.discretize = discretize
+        self.starting_grid = None
         self.initial_position = (0, 0, 0)
         self.initial_rotation = (0, 0)
         if discretize:
@@ -174,9 +175,9 @@ class GridWorld(Env):
             else:
                 # yield new task
                 self._task = self._task_generator.reset()
-                self.starting_grid = self._task.starting_grid
         self.step_no = 0
         self._task.reset()
+        self.starting_grid = self._task.starting_grid
         for block in set(self.world.placed):
             self.world.remove_block(block)
         if self.starting_grid is not None:

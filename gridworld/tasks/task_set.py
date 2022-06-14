@@ -35,6 +35,10 @@ class CustomTasks(Tasks):
             for conversation, grid in goals
         }
         self.task_ids = list(self.tasks.keys())
+        self.reset()
+
+    def __getattr__(self, name):
+        return getattr(self.current, name)
 
     def __len__(self):
         return len(self.task_ids)
@@ -45,7 +49,8 @@ class CustomTasks(Tasks):
 
     def reset(self) -> Task:
         task_id = np.random.choice(self.task_ids)
-        return self.tasks[task_id].reset()
+        self.current = self.tasks[task_id].reset()
+        return self.current
 
 
 class RandomTasks(Tasks):
@@ -78,6 +83,9 @@ class RandomTasks(Tasks):
             uid = str(uuid.uuid4().hex)
             self.tasks[uid] = self.sample_task()
         self.reset()
+
+    def __getattr__(self, name):
+        return getattr(self.current, name)
 
     def dump(self, path):
         with open(path, 'wb') as f:
