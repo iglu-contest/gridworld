@@ -4,7 +4,15 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict
 from ..tasks.task import Subtasks, Task, Tasks
+from .load import download
 
+from zipfile import ZipFile
+
+
+if 'IGLU_DATA_PATH' in os.environ:
+    DATA_PREFIX = os.path.join(os.environ['IGLU_DATA_PATH'], 'data', 'iglu')
+else:
+    DATA_PREFIX = os.path.join(os.environ['HOME'], '.iglu', 'data', 'iglu')
 
 VOXELWORLD_GROUND_LEVEL = 63
 
@@ -75,15 +83,29 @@ def fix_log(log_string):
     return "\n".join(lines)
 
 class IGLUDataset(Tasks):
-    def __init__(self, task_kwargs=None) -> None:
-        # assume we downloaded it. add this later
+    """
+    Collaborative dataset for the IGLU competition.
+
+    Current version of the dataset covers 31 structures in 128 staged game sessions 
+    resulting in 608 tasks.
+    """
+    URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
+    def __init__(self, task_kwargs=None, force_download=False) -> None:
         if task_kwargs is None:
             task_kwargs = {}
         self.task_kwargs = task_kwargs
-        path = './raw'
-        dialogs = pd.read_csv(f'{path}/HitsTable2.csv')
+        path = f'{DATA_PREFIX}/iglu_dataset.zip'
+        if not os.path.exists(f'{DATA_PREFIX}/dialogs.csv') or force_download:
+            download(
+                url=IGLUDataset.URL,
+                destination=path,
+                data_prefix=DATA_PREFIX
+            )
+            with ZipFile(path) as zfile:
+                zfile.extractall(DATA_PREFIX)
+        dialogs = pd.read_csv(f'{DATA_PREFIX}/dialogs.csv')
         self.tasks = defaultdict(list)
-        self.parse_tasks(dialogs, path)
+        self.parse_tasks(dialogs, DATA_PREFIX)
         pass
     
     def parse_tasks(self, dialogs, path):
@@ -134,7 +156,7 @@ class IGLUDataset(Tasks):
         sample = np.random.choice(list(self.tasks.keys()))
         sess_id = np.random.choice(len(self.tasks[sample]))
         self.current = self.tasks[sample][sess_id]
-        return self.current
+        return self.current.reset()
     
     def __len__(self):
         return sum(len(sess.structure_seq) for sess in sum(self.tasks.values(), []))
@@ -144,11 +166,3 @@ class IGLUDataset(Tasks):
             for j, task in enumerate(tasks):
                 for k, subtask in enumerate(task):
                     yield task_id, j, k, subtask
-
-
-iglu_data = IGLUDataset()
-print(iglu_data)  
-print(f'total structures: {len(iglu_data.tasks)}')
-print(f'total sessions: {len(sum(iglu_data.tasks.values(), []))}')
-print(f'total total RL tasks: {sum(len(sess.structure_seq) for sess in sum(iglu_data.tasks.values(), []))}')
-print()
