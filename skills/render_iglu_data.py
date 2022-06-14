@@ -1,6 +1,6 @@
 import sys
 sys.path.insert(0, '../')
-from gridworld.env import create_env
+from gridworld import GridWorld
 from gridworld.data.iglu_dataset import IGLUDataset
 from tqdm import tqdm
 from PIL import Image
@@ -11,10 +11,11 @@ import pickle
 import math
 import textwrap
 import cv2
+import gym
 render_size = (640, 640)
 
 rendered_texts = {}
-def put_multiline_text(lines, height, width, text_frac=0.4):
+def put_multiline_text(lines, height, width, text_frac=0.6):
     global rendered_texts
     lines = lines.split('\n')
     if tuple(lines) not in rendered_texts:
@@ -36,10 +37,7 @@ def put_multiline_text(lines, height, width, text_frac=0.4):
         rendered_texts[tuple(lines)] = np.array(canvas)
     return np.copy(rendered_texts[tuple(lines)])
 
-env = create_env(
-    visual=True, discretize=True, size_reward=False,
-    render_size=render_size, select_and_place=True
-)
+env = gym.make('IGLUGridworldVector-v0', render_size=render_size)
 done = False
 tasks = IGLUDataset()
 env.set_task_generator(tasks)
@@ -62,7 +60,7 @@ for task_id, n, m, subtask in tasks:
         i += 1
         suffix = 'target' if j == 0 else 'delta'
         os.makedirs(f'task_renders/{task_id}_{n}', exist_ok=True)
-        writer = cv2.VideoWriter(f'task_renders/{task_id}_{n}/{task_id}_{n}_step_{m}.mp4', fourcc, 20, (1536, 640))
+        writer = cv2.VideoWriter(f'task_renders/{task_id}_{n}/{task_id}_{n}_step_{m}.mp4', fourcc, 20, (1664, 640))
         for frame_no, view_angle in enumerate(range(0, 360, 2)):
             done = False
             mean_pos = np.array([

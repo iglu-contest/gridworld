@@ -310,13 +310,13 @@ class SizeReward(Wrapper):
 
 
 def create_env(
-        visual=True, discretize=True, size_reward=True, select_and_place=True,
+        render=True, discretize=True, size_reward=True, select_and_place=True,
         right_placement_scale=1, render_size=(64, 64), target_in_obs=False, 
         vector_state=False,
         wrong_placement_scale=0.1, name=''
     ):
     env = GridWorld(
-        render=visual, select_and_place=select_and_place,
+        render=render, select_and_place=select_and_place,
         discretize=discretize, right_placement_scale=right_placement_scale,
         wrong_placement_scale=wrong_placement_scale, name=name,
         render_size=render_size, target_in_obs=target_in_obs,

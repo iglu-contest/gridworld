@@ -31,10 +31,21 @@ class CustomTasks(Tasks):
     def __init__(self, goals: List[Tuple[str, np.ndarray]]):
         super().__init__()
         self.tasks = {
-            str(uuid.uuid4().hex): Task(conversation, grid)
+            str(uuid.uuid4().hex): Task(conversation, self.to_dense(grid))
             for conversation, grid in goals
         }
         self.task_ids = list(self.tasks.keys())
+
+    def __len__(self):
+        return len(self.task_ids)
+
+    def __iter__(self):
+        for task_id, task in self.tasks:
+            yield from iter(task)
+
+    def reset(self) -> Task:
+        task_id = np.random.choice(self.task_ids)
+        return self.tasks[task_id].reset()
 
 
 class RandomTasks(Tasks):
@@ -66,7 +77,7 @@ class RandomTasks(Tasks):
         for _ in range(self.max_cache):
             uid = str(uuid.uuid4().hex)
             self.tasks[uid] = self.sample_task()
-        self.sample()
+        self.reset()
 
     def dump(self, path):
         with open(path, 'wb') as f:
@@ -76,6 +87,13 @@ class RandomTasks(Tasks):
         with open(path, 'rb') as f:
             grids = pickle.load(f)
         self.tasks = {uid: Task('', g) for uid, g in grids.items()}
+
+    def __len__(self):
+        return self.max_cache
+
+    def __iter__(self):
+        for task in self.tasks:
+            yield task 
 
     def __repr__(self):
         hps = dict(
@@ -89,7 +107,7 @@ class RandomTasks(Tasks):
         hp_str = ', '.join(f'{k}={v}' for k, v in hps.items())
         return f'RandomTasks({hp_str})'
 
-    def sample(self):
+    def reset(self):
         if self.max_cache > 0:
             sample = np.random.choice(list(self.tasks.keys()))
             self.current = self.tasks[sample]
@@ -127,6 +145,8 @@ class RandomTasks(Tasks):
 
         return Task(chat, target_grid)
 
+
+DUMMY_TASK = CustomTasks(goals=[('', [(5, 7, 5, 1)])])
 # to initialize task descriptions
 # _ = CDMDataset(preset=[f'C{j}' for j in range(1, 158)], update_task_dict=True)
 

@@ -64,6 +64,15 @@ class Task:
         self.wrong_placement = 0
         return self
 
+    # placeholder methods for uniformity with Tasks class
+    ###
+    def __len__(self):
+        return 1
+
+    def __iter__(self):
+        yield self
+    ###
+
     def step_intersection(self, grid):
         """
         Calculates the difference between the maximal intersection at previous step and the current one.
@@ -216,7 +225,7 @@ class Subtasks(Tasks):
 
     def step_intersection(self, grid):
         """
-
+        
         """
         right_placement, wrong_placement, done = self.current.step_intersection(grid)
         if done and len(self.structure_seq) > self.task_goal:
