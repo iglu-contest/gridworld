@@ -42,6 +42,7 @@ RUN pip3 install --upgrade pip && \
     pyglet==1.5.21 \
     numba \
     scipy==1.7.3 \
-    numpy==1.21.5
+    numpy==1.21.5 \
+    pandas==1.3.5
 ENV PYOPENGL_PLATFORM=egl
 ENV MUJOCO_GL=egl
