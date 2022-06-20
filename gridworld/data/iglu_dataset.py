@@ -21,11 +21,11 @@ block_colour_map = {
     # voxelworld's colour id : iglu colour id
     0: 0,  # air
     57: 1, # blue
-    50: 2, # yellow
-    59: 3, # green
+    50: 6, # yellow
+    59: 2, # green
     47: 4, # orange
     56: 5, # purple
-    60: 6  # red
+    60: 3  # red
 }
 
 def fix_xyz(x, y, z):

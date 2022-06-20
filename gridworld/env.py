@@ -49,6 +49,7 @@ class GridWorld(Env):
         self.vector_state = vector_state
         self.discretize = discretize
         self.starting_grid = None
+        self._overwrite_starting_grid = None
         self.initial_position = (0, 0, 0)
         self.initial_rotation = (0, 0)
         if discretize:
@@ -150,9 +151,19 @@ class GridWorld(Env):
     def initialize_world(self, starting_grid, initial_poisition):
         """
         """
-        self.starting_grid = starting_grid
+        self._overwrite_starting_grid = starting_grid
+        warnings.warn(
+            'Default task starting grid is overwritten using .initialize_world method. '
+            'Use .deinitialize_world to restore the original state.'
+        )
         self.initial_position = tuple(initial_poisition[:3])
         self.initial_rotation = tuple(initial_poisition[3:])
+        self.reset()
+
+    def deinitialize_world(self):
+        self._overwrite_starting_grid = None
+        self.initial_position = (0, 0, 0)
+        self.initial_rotation = (0, 0)
         self.reset()
 
     @property
@@ -175,9 +186,14 @@ class GridWorld(Env):
             else:
                 # yield new task
                 self._task = self._task_generator.reset()
+        elif self._task_generator is not None:
+            self._task = self._task_generator.reset()
         self.step_no = 0
         self._task.reset()
-        self.starting_grid = self._task.starting_grid
+        if self._overwrite_starting_grid is not None:
+            self.starting_grid = self._overwrite_starting_grid
+        else:
+            self.starting_grid = self._task.starting_grid
         for block in set(self.world.placed):
             self.world.remove_block(block)
         if self.starting_grid is not None:
