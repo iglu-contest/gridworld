@@ -127,13 +127,17 @@ class IGLUDataset(Tasks):
                     elif isinstance(row.Answer4ClarifyingQuestion, str):
                         utt_seq[-1].append(f'<Architect> {self.process(row.Answer4ClarifyingQuestion)}')
                 else:
+                    if not row.IsHITQualified:
+                        continue
                     if isinstance(row.ClarifyingQuestion, str):
                         utt_seq[-1].append(f'<Builder> {self.process(row.ClarifyingQuestion)}')
                         continue
                     blocks.append([])
                     curr_step = f'{path}/builder-data/{sess_id}/step-{row.StepId}'
                     if not os.path.exists(curr_step):
-                        continue
+                        break
+                        # TODO: in this case the multiturn collection was likely 
+                        # "reset" so we need to stop parsing this session. Need to check that.
                     with open(curr_step) as f:
                         step_data = json.load(f)
                     for x, y, z, bid in step_data['worldEndingState']['blocks']:

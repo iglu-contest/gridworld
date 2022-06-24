@@ -214,7 +214,7 @@ class Subtasks(Tasks):
             initial_blocks = []
         else:
             initial_blocks = self.structure_seq[turn_start]
-        tid = min(turn_goal, len(self.structure_seq) - 1, len(self.dialog) - 1) if not self.full else -1
+        tid = min(turn_goal, len(self.structure_seq) - 1) if not self.full else -1
         target_grid = self.structure_seq[tid]
         task = Task(
             dialog, target_grid=self.to_dense(target_grid),

@@ -2,6 +2,7 @@ import sys
 sys.path.insert(0, '../')
 from gridworld import GridWorld
 from gridworld.data.iglu_dataset import IGLUDataset
+from gridworld.tasks import DUMMY_TASK
 from tqdm import tqdm
 from PIL import Image
 from PIL import ImageDraw, ImageFont
@@ -23,7 +24,7 @@ def put_multiline_text(lines, height, width, text_frac=0.6):
         canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
         canvas = Image.fromarray(canvas)
         draw = ImageDraw.Draw(canvas)
-        fnt = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf", 18)
+        fnt = ImageFont.truetype("FreeMono.ttf", 18)
         char_width = np.mean([fnt.getsize(char)[0] for char in set(' '.join([l for l in lines if l is not None]))])
         chars = int(0.9 * canvas.size[0] / char_width)
         text = []
@@ -40,7 +41,8 @@ def put_multiline_text(lines, height, width, text_frac=0.6):
 env = gym.make('IGLUGridworldVector-v0', render_size=render_size)
 done = False
 tasks = IGLUDataset()
-env.set_task_generator(tasks)
+# env.set_task_generator(None)
+env.set_task(DUMMY_TASK)
 obs = env.reset()
 img = env.unwrapped.render()
 os.makedirs('task_renders', exist_ok=True)
@@ -98,7 +100,7 @@ for task_id, n, m, subtask in tasks:
             else:
                 left = cache[frame_no]
                 right = img[..., :-1][..., ::-1]
-                text = put_multiline_text(subtask.chat, 640, 640)
+                text = put_multiline_text(subtask.last_instruction, 640, 640)
                 frame = np.concatenate([left, text, right], axis=1)
                 writer.write(frame)
             tq.update(1)
