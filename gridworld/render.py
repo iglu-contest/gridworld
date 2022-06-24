@@ -37,7 +37,7 @@ def setup():
 
 
 class Renderer(Window):
-    TEXTURE_PATH = 'texture.png'
+    TEXTURE_PATH = 'shades_texture.png'
 
     def __init__(self, model, agent, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -95,8 +95,8 @@ class Renderer(Window):
         """
         width, height = self.get_size()
         glEnable(GL_DEPTH_TEST)
-        glEnable(GL_LIGHTING)
-        glEnable(GL_LIGHT0)
+        # glEnable(GL_LIGHTING)
+        # glEnable(GL_LIGHT0)
         viewport = self.get_viewport_size()
         glViewport(0, 0, max(1, viewport[0]), max(1, viewport[1]))
         glMatrixMode(GL_PROJECTION)
@@ -109,9 +109,9 @@ class Renderer(Window):
         glRotatef(-y, math.cos(math.radians(x)), 0, math.sin(math.radians(x)))
         x, y, z = self.agent.position
         glTranslatef(-x, -y, -z)
-        glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*4)(0.0,9,0.0,1))
-        glLightfv(GL_LIGHT0, GL_AMBIENT, (GLfloat*4)(1,1,1,1))
-        glLightfv(GL_LIGHT0, GL_DIFFUSE, (GLfloat*4)(1.0,1.0,1.0,1))
+        # glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*4)(0.0,9,0.0,1))
+        # glLightfv(GL_LIGHT0, GL_AMBIENT, (GLfloat*4)(1,1,1,1))
+        # glLightfv(GL_LIGHT0, GL_DIFFUSE, (GLfloat*4)(1.0,1.0,1.0,1))
         
 
     def on_draw(self):
