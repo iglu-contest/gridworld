@@ -39,6 +39,7 @@ def setup():
 class Renderer(Window):
     TEXTURE_PATH = 'shades_texture.png'
 
+
     def __init__(self, model, agent, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model = model
@@ -49,23 +50,24 @@ class Renderer(Window):
         dir_path = os.path.dirname(gridworld.__file__)
         TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
         np_texture = np.asarray(Image.open(TEXTURE_PATH)).copy()
-        if kwargs['width'] <= 128:
-            s = 1.5
-            if kwargs['width'] <= 64:
-                s = 2
-            # TODO: create separate textures for low-res
-            # for edge lines to look better in low resolution
-            for i in range(4):
-                for j in range(4):
-                    np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64] = gaussian_filter(
-                        np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64], 
-                        (s, s, 0), mode='nearest'
-                    )
-            path = os.path.join(os.path.dirname(TEXTURE_PATH), 'some.png')
-            with FileLock(f'/tmp/mylock'):
-                Image.fromarray(np_texture).save(path)
-        else:
-            path = TEXTURE_PATH
+        path = TEXTURE_PATH
+        # if kwargs['width'] <= 128:
+        #     s = 1.5
+        #     if kwargs['width'] <= 64:
+        #         s = 2
+        #     # TODO: create separate textures for low-res
+        #     # for edge lines to look better in low resolution
+        #     for i in range(4):
+        #         for j in range(4):
+        #             np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64] = gaussian_filter(
+        #                 np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64], 
+        #                 (s, s, 0), mode='nearest'
+        #             )
+        #     path = os.path.join(os.path.dirname(TEXTURE_PATH), 'some.png')
+        #     with FileLock(f'/tmp/mylock'):
+        #         Image.fromarray(np_texture).save(path)
+        # else:
+        #     path = TEXTURE_PATH
         with FileLock(f'/tmp/mylock'):
             self.texture_group = TextureGroup(image.load(path).get_texture())
         self.overlay = False
@@ -74,6 +76,7 @@ class Renderer(Window):
             x=10, y=self.height - 10, anchor_x='left', anchor_y='top',
             color=(0, 0, 0, 255))
         self.model._initialize()
+        self.buffer_manager = pyglet.image.get_buffer_manager()
 
     def set_2d(self):
         """ Configure OpenGL to draw in 2d.
@@ -131,13 +134,13 @@ class Renderer(Window):
     
     def render(self):
         self.on_draw()
-        width, height = self.get_size()
-        return np.asanyarray(pyglet.image
-            .get_buffer_manager()
+        # width, height = self.get_size()
+        return np.asanyarray(
+            self.buffer_manager
             .get_color_buffer()
             .get_image_data()
             .get_data()
-        ).reshape((width, height, 4))[::-1]
+        ).reshape((64, 64, 4))[::-1]
 
     def add_block(self, position, texture_id, **kwargs):
         x, y, z = position

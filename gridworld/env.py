@@ -363,7 +363,7 @@ def create_env(
     return env
 
 gym.envs.register(
-     id='IGLUGW-v0',
+     id='IGLUGridworld-v0',
      entry_point='gridworld.env:create_env',
      kwargs={}
 )
@@ -371,5 +371,5 @@ gym.envs.register(
 gym.envs.register(
      id='IGLUGridworldVector-v0',
      entry_point='gridworld.env:create_env',
-     kwargs={'vector_state': True}
+     kwargs={'vector_state': True, 'render': False}
 )

@@ -28,10 +28,13 @@ class CustomTasks(Tasks):
             Each task is represented by a pair
             (string conversation, 3d numpy grid)
     """
-    def __init__(self, goals: List[Tuple[str, np.ndarray]]):
+    def __init__(self, goals: List[Tuple[str, np.ndarray]], task_kwargs=None):
         super().__init__()
+        if task_kwargs is None:
+            task_kwargs = {}
+        self.task_kwargs = task_kwargs
         self.tasks = {
-            str(uuid.uuid4().hex): Task(conversation, self.to_dense(grid))
+            str(uuid.uuid4().hex): Task(conversation, self.to_dense(grid), **self.task_kwargs)
             for conversation, grid in goals
         }
         self.task_ids = list(self.tasks.keys())
@@ -154,7 +157,7 @@ class RandomTasks(Tasks):
         return Task(chat, target_grid)
 
 
-DUMMY_TASK = CustomTasks(goals=[('', [(5, 7, 5, 1)])])
+DUMMY_TASK = CustomTasks(goals=[('', [(5, 7, 5, 1)])], task_kwargs={'invariant': False})
 # to initialize task descriptions
 # _ = CDMDataset(preset=[f'C{j}' for j in range(1, 158)], update_task_dict=True)
 
