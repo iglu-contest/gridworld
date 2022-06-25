@@ -236,8 +236,7 @@ class Agent(object):
             texture = self.world.world[block]
             if texture != GREY and texture != WHITE:
                 self.world.remove_block(block)
-                # TODO: avoid direct comparisons
-                # self.inventory[self.active_block] += 1
+                self.inventory[texture - 1] += 1
     
 
     def get_focused_block(self,):
