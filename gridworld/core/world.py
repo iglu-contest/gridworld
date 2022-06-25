@@ -6,6 +6,7 @@ from .utils import FLYING_SPEED, WALKING_SPEED, GRAVITY, TERMINAL_VELOCITY, PLAY
 from .utils import normalize
 
 class Agent:
+    PAD = 0.25
     __slots__ = 'flying', 'strafe', 'position', 'rotation', 'reticle', 'sustain', 'dy', 'time_int_steps', \
         'inventory', 'active_block'
     def __init__(self, sustain=False) -> None:
@@ -280,7 +281,7 @@ class World:
         # have to count as a collision. If 0, touching terrain at all counts as
         # a collision. If .49, you sink into the ground, as if walking through
         # tall grass. If >= .5, you'll fall through the ground.
-        pad = 0.25
+        pad = Agent.PAD
         p = list(position)
         np = normalize(position)
         for face in FACES:  # check all surrounding blocks
@@ -313,8 +314,15 @@ class World:
         if place:
             if previous:
                 if agent.inventory[agent.active_block - 1] > 0 and self.build_zone(*previous): 
-                    self.add_block(previous, agent.active_block)
-                    agent.inventory[agent.active_block - 1] -= 1
+                    x, y, z = agent.position
+                    y = y - (PLAYER_HEIGHT - 1) + Agent.PAD
+                    bx, by, bz = previous
+                    bx -= 0.5
+                    bz -= 0.5
+                    if not (bx <= x <= bx + 1 and bz <= z <= bz + 1 
+                       and (by <= y <= by + 1 or by <= (y + 1) <= by + 1)):
+                        self.add_block(previous, agent.active_block)
+                        agent.inventory[agent.active_block - 1] -= 1
         if remove and block:
             texture = self.world[block]
             if texture != GREY and texture != WHITE:

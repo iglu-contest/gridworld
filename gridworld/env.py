@@ -259,7 +259,7 @@ class GridWorld(Env):
             else:
                 raise ValueError('Task is not initialized! Run .reset() first.')
         self.step_no += 1
-        self.world.step(self.agent, action)
+        self.world.step(self.agent, action, select_and_place=self.select_and_place)
         x, y, z = self.agent.position
         yaw, pitch = self.agent.rotation
         obs = {}
