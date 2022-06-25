@@ -8,12 +8,12 @@ from .render import Renderer
 
 
 class Viewer(Renderer):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, overlay=True, **kwargs) -> None:
         self.exclusive = False
         self.world = World()
         self.agent = Agent(self.world, sustain=True)
         super().__init__(model=self.world, agent=self.agent, *args, **kwargs)
-        self.overlay = True
+        self.overlay = overlay
         self.num_keys = [
             key._1, key._2, key._3, key._4, key._5,
             key._6, key._7, key._8, key._9, key._0]

@@ -37,7 +37,7 @@ def setup():
 
 
 class Renderer(Window):
-    TEXTURE_PATH = 'shades_texture.png'
+    TEXTURE_PATH = 'texture.png'
 
     def __init__(self, model, agent, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -49,25 +49,8 @@ class Renderer(Window):
         dir_path = os.path.dirname(gridworld.__file__)
         TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
         np_texture = np.asarray(Image.open(TEXTURE_PATH)).copy()
-        if kwargs['width'] <= 128:
-            s = 1.5
-            if kwargs['width'] <= 64:
-                s = 2
-            # TODO: create separate textures for low-res
-            # for edge lines to look better in low resolution
-            for i in range(4):
-                for j in range(4):
-                    np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64] = gaussian_filter(
-                        np_texture[i * 64: (i + 1) * 64, j * 64: (j + 1) * 64], 
-                        (s, s, 0), mode='nearest'
-                    )
-            path = os.path.join(os.path.dirname(TEXTURE_PATH), 'some.png')
-            with FileLock(f'/tmp/mylock'):
-                Image.fromarray(np_texture).save(path)
-        else:
-            path = TEXTURE_PATH
         with FileLock(f'/tmp/mylock'):
-            self.texture_group = TextureGroup(image.load(path).get_texture())
+            self.texture_group = TextureGroup(image.load(TEXTURE_PATH).get_texture())
         self.overlay = False
         self._shown = {}
         self.label = pyglet.text.Label('', font_name='Arial', font_size=18,
