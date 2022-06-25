@@ -1,9 +1,9 @@
 import math
 from typing import Optional
 
-from .utils import WHITE, GREY, BLUE, FACES
-from .utils import FLYING_SPEED, WALKING_SPEED, GRAVITY, TERMINAL_VELOCITY, PLAYER_HEIGHT, JUMP_SPEED
-from .utils import normalize
+from ..utils import WHITE, GREY, BLUE, FACES
+from ..utils import FLYING_SPEED, WALKING_SPEED, GRAVITY, TERMINAL_VELOCITY, PLAYER_HEIGHT, JUMP_SPEED
+from ..utils import normalize
 
 class Agent:
     PAD = 0.25
@@ -71,7 +71,7 @@ class World:
         self.initialized = True
 
     def hit_test(self, position, vector, max_distance=8):
-        """ 
+        """
         Line of sight search from current position. If a block is
         intersected it is returned, along with the block previously in the line
         of sight. If no block is found, return None, None.
@@ -143,7 +143,7 @@ class World:
 
     ### AGENT CONTROL METHODS
     def get_sight_vector(self, agent):
-        """ 
+        """
         Returns the current line of sight vector indicating the direction
         the player is looking.
 
@@ -161,7 +161,7 @@ class World:
         return (dx, dy, dz)
 
     def get_motion_vector(self, agent):
-        """ 
+        """
         Returns the current motion vector indicating the velocity of the
         player.
 
@@ -218,7 +218,7 @@ class World:
             agent.strafe = [0, 0]
 
     def _update(self, agent, dt):
-        """ 
+        """
         Private implementation of the `update()` method. This is where most
         of the motion logic lives, along with gravity and collision detection.
 
@@ -260,7 +260,7 @@ class World:
         agent.position = (x, y, z)
 
     def collide(self, agent, position, height, new_blocks=None):
-        """ 
+        """
         Checks to see if the player at the given `position` and `height`
         is colliding with any blocks in the world.
 
@@ -308,18 +308,18 @@ class World:
         return tuple(p)
 
     def place_or_remove_block(self, agent, remove: bool, place: bool):
-        if place and remove: return
+        if place and remove or not place and not remove: return
         vector = self.get_sight_vector(agent)
         block, previous = self.hit_test(agent.position, vector)
         if place:
             if previous:
-                if agent.inventory[agent.active_block - 1] > 0 and self.build_zone(*previous): 
+                if agent.inventory[agent.active_block - 1] > 0 and self.build_zone(*previous):
                     x, y, z = agent.position
                     y = y - (PLAYER_HEIGHT - 1) + Agent.PAD
                     bx, by, bz = previous
                     bx -= 0.5
                     bz -= 0.5
-                    if not (bx <= x <= bx + 1 and bz <= z <= bz + 1 
+                    if not (bx <= x <= bx + 1 and bz <= z <= bz + 1
                        and (by <= y <= by + 1 or by <= (y + 1) <= by + 1)):
                         self.add_block(previous, agent.active_block)
                         agent.inventory[agent.active_block - 1] -= 1
@@ -328,7 +328,7 @@ class World:
             if texture != GREY and texture != WHITE:
                 self.remove_block(block)
                 agent.inventory[texture - 1] += 1
-    
+
     def get_focused_block(self, agent):
         vector = self.get_sight_vector(agent)
         return self.hit_test(agent.position, vector)[0]

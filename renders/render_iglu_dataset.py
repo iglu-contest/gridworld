@@ -38,7 +38,7 @@ def put_multiline_text(lines, height, width, text_frac=0.6):
         rendered_texts[tuple(lines)] = np.array(canvas)
     return np.copy(rendered_texts[tuple(lines)])
 
-env = gym.make('IGLUGridworldVector-v0', render_size=render_size)
+env = gym.make('IGLUGridworld-v0', render_size=render_size)
 done = False
 tasks = IGLUDataset()
 # env.set_task_generator(None)
@@ -83,7 +83,7 @@ for task_id, n, m, subtask in tasks:
             dist = max(1, dxz, dy)
             ddx = np.sin(view_angle / 180 * np.pi) * sqrt2
             ddz = np.cos(view_angle / 180 * np.pi) * sqrt2
-            init_pos = np.array([ddx * dist + mean_pos[0], mean_pos[1] + 2, ddz * dist + mean_pos[2]])
+            init_pos = np.array([ddx * dist + mean_pos[0], mean_pos[1] + 1, ddz * dist + mean_pos[2]])
             init_pos1 = init_pos.copy()
             init_pos[1] += 1.75
             vec = mean_pos - init_pos

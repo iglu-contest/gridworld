@@ -1,12 +1,11 @@
 import pyglet
 import warnings
-# pyglet.options["headless"] = True
-from gridworld.world import World
-from gridworld.control import Agent
+import os
+if os.environ.get('IGLU_HEADLESS', '1') == '1':
+    pyglet.options["headless"] = True
+from gridworld.core.world import Agent, World
 from gridworld.render import Renderer, setup
 from gridworld.tasks.task import Task, Tasks
-
-from gridworld.core.world import Agent as core_Agent, World as core_World
 
 from gym.spaces import Dict, Box, Discrete, Space
 from gym import Env, Wrapper
@@ -18,7 +17,7 @@ from copy import copy
 class String(Space):
     def __init__(self, ):
         super().__init__(shape=(), dtype=np.object_)
-    
+
     def sample(self):
         return ''
 
@@ -30,12 +29,10 @@ class GridWorld(Env):
     def __init__(
             self, render=True, max_steps=250, select_and_place=False,
             discretize=False, right_placement_scale=1., wrong_placement_scale=0.1,
-            render_size=(64, 64), target_in_obs=False, 
+            render_size=(64, 64), target_in_obs=False,
             vector_state=True, name='') -> None:
-        # self.world = World()
-        # self.agent = Agent(sustain=False)
-        self.agent = core_Agent(sustain=False)
-        self.world = core_World()
+        self.agent = Agent(sustain=False)
+        self.world = World()
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
         self._task = None
         self._task_generator = None
@@ -57,7 +54,6 @@ class GridWorld(Env):
         self.initial_position = (0, 0, 0)
         self.initial_rotation = (0, 0)
         if discretize:
-            # self.parse = self.parse_low_level_action
             self.action_space = Discrete(18)
         else:
             self.action_space = Dict({
@@ -71,7 +67,6 @@ class GridWorld(Env):
                 'camera': Box(low=-5, high=5, shape=(2,)),
                 'hotbar': Discrete(7)
             })
-            # self.parse = self.parse_action
         self.observation_space = {
             'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
             'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
@@ -302,7 +297,7 @@ class SizeReward(Wrapper):
 
 def create_env(
         render=True, discretize=True, size_reward=True, select_and_place=True,
-        right_placement_scale=1, render_size=(64, 64), target_in_obs=False, 
+        right_placement_scale=1, render_size=(64, 64), target_in_obs=False,
         vector_state=False,
         wrong_placement_scale=0.1, name=''
     ):
