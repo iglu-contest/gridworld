@@ -39,7 +39,6 @@ def setup():
 class Renderer(Window):
     TEXTURE_PATH = 'texture.png'
 
-
     def __init__(self, model, agent, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model = model
@@ -49,7 +48,6 @@ class Renderer(Window):
         self.batch = Batch()
         dir_path = os.path.dirname(gridworld.__file__)
         TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
-        np_texture = np.asarray(Image.open(TEXTURE_PATH)).copy()
         with FileLock(f'/tmp/mylock'):
             self.texture_group = TextureGroup(image.load(TEXTURE_PATH).get_texture())
         self.overlay = False
@@ -146,7 +144,7 @@ class Renderer(Window):
         crosshairs.
 
         """
-        block = self.agent.get_focused_block()
+        block = self.model.get_focused_block(self.agent)
         if block:
             x, y, z = block
             vertex_data = cube_vertices(x, y, z, 0.51)
@@ -160,9 +158,10 @@ class Renderer(Window):
 
         """
         x, y, z = self.agent.position
-        self.label.text = '%02d (%.2f, %.2f, %.2f) %d / %d' % (
-            pyglet.clock.get_fps(), x, y, z,
-            len(self._shown), len(self.model.world))
+        i = self.agent.inventory
+        self.label.text = f'{int(pyglet.clock.get_fps()):02d} ({x:.2f}, {y:.2f}, {z:.2f}) ' \
+            f'{len(self._shown)} / {len(self.model.world)} ' \
+            f'({i[0]}, {i[1]}, {i[2]}, {i[3]}, {i[4]}, {i[5]})'
         self.label.draw()
 
     def draw_reticle(self):

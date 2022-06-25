@@ -1,10 +1,12 @@
 import pyglet
 import warnings
-pyglet.options["headless"] = True
+# pyglet.options["headless"] = True
 from gridworld.world import World
 from gridworld.control import Agent
 from gridworld.render import Renderer, setup
 from gridworld.tasks.task import Task, Tasks
+
+from gridworld.core.world import Agent as core_Agent, World as core_World
 
 from gym.spaces import Dict, Box, Discrete, Space
 from gym import Env, Wrapper
@@ -30,8 +32,10 @@ class GridWorld(Env):
             discretize=False, right_placement_scale=1., wrong_placement_scale=0.1,
             render_size=(64, 64), target_in_obs=False, 
             vector_state=True, name='') -> None:
-        self.world = World()
-        self.agent = Agent(self.world, sustain=False)
+        # self.world = World()
+        # self.agent = Agent(sustain=False)
+        self.agent = core_Agent(sustain=False)
+        self.world = core_World()
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
         self._task = None
         self._task_generator = None
@@ -53,7 +57,7 @@ class GridWorld(Env):
         self.initial_position = (0, 0, 0)
         self.initial_rotation = (0, 0)
         if discretize:
-            self.parse = self.parse_low_level_action
+            # self.parse = self.parse_low_level_action
             self.action_space = Discrete(18)
         else:
             self.action_space = Dict({
@@ -67,7 +71,7 @@ class GridWorld(Env):
                 'camera': Box(low=-5, high=5, shape=(2,)),
                 'hotbar': Discrete(7)
             })
-            self.parse = self.parse_action
+            # self.parse = self.parse_action
         self.observation_space = {
             'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
             'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
@@ -246,42 +250,6 @@ class GridWorld(Env):
         add = bool(action['use'])
         return strafe, jump, inventory, camera, remove, add
 
-    def parse_low_level_action(self, action):
-        # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left;
-        # 13 camera right; 14 camera up; 15 camera down; 16 attack; 17 use;
-        # action = list(action).index(1)
-        strafe = [0, 0]
-        camera = [0, 0]
-        jump = False
-        inventory = None
-        remove = False
-        add = False
-        if action == 1:
-            strafe[0] += -1
-        elif action == 2:
-            strafe[0] += 1
-        elif action == 3:
-            strafe[1] += -1
-        elif action == 4:
-            strafe[1] += 1
-        elif action == 5:
-            jump = True
-        elif 6 <= action <= 11:
-            inventory = action - 5
-        elif action == 12:
-            camera[0] = -5
-        elif action == 13:
-            camera[0] = 5
-        elif action == 14:
-            camera[1] = -5
-        elif action == 15:
-            camera[1] = 5
-        elif action == 16:
-            remove = True
-        elif action == 17:
-            add = True
-        return strafe, jump, inventory, camera, remove, add
-
     def step(self, action):
         if self._task is None:
             if self._task_generator is None:
@@ -291,21 +259,9 @@ class GridWorld(Env):
             else:
                 raise ValueError('Task is not initialized! Run .reset() first.')
         self.step_no += 1
-        strafe, jump, inventory, camera, remove, add = self.parse(action)
-        if self.select_and_place and inventory is not None:
-            add = True
-            remove = False
-        self.agent.movement(strafe=strafe, jump=jump, inventory=inventory)
-        self.agent.move_camera(*camera)
-        self.agent.place_or_remove_block(remove=remove, place=add)
-        self.agent.update(dt=1/20.)
+        self.world.step(self.agent, action)
         x, y, z = self.agent.position
         yaw, pitch = self.agent.rotation
-        while yaw > 360.:
-            yaw -= 360.
-        while yaw < 0.0:
-            yaw += 360.0
-        self.agent.rotation = (yaw, pitch)
         obs = {}
         obs['inventory'] = np.array(copy(self.agent.inventory), dtype=np.float32)
         obs['compass'] = np.array([yaw - 180.,], dtype=np.float32)
