@@ -2,20 +2,16 @@ from pyglet.window import key, mouse
 from pyglet.graphics import vertex_list
 from pyglet.gl import *
 
-from .control import Agent
-from .world import World
 from .render import Renderer
 
-from gridworld.core.world import Agent as core_Agent, World as core_World
+from gridworld.core.world import Agent, World
 
 
 class Viewer(Renderer):
     def __init__(self, *args, overlay=True, **kwargs) -> None:
         self.exclusive = False
-        # self.world = World()
-        # self.agent = Agent(self.world, sustain=True)
-        self.world = core_World()
-        self.agent = core_Agent(sustain=True)
+        self.world = World()
+        self.agent = Agent(sustain=True)
         super().__init__(model=self.world, agent=self.agent, *args, **kwargs)
         self.overlay = overlay
         self.num_keys = [
