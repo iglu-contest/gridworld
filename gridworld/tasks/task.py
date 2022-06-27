@@ -92,6 +92,32 @@ class Task:
         self.wrong_placement = wrong_placement
         return right_placement, wrong_placement, done
 
+    def argmax_intersection(self, grid):
+        max_int, argmax = 0, (0, 0, 0)
+        for i, admissible in enumerate(self.admissible):
+            for dx, dz in admissible:
+                x_sls = slice(max(dx, 0), BUILD_ZONE_SIZE_X + min(dx, 0))
+                z_sls = slice(max(dz, 0), BUILD_ZONE_SIZE_Z + min(dz, 0))
+                sls_target = self.target_grids[i][:, x_sls, z_sls]
+
+                x_sls = slice(max(-dx, 0), BUILD_ZONE_SIZE_X + min(-dx, 0))
+                z_sls = slice(max(-dz, 0), BUILD_ZONE_SIZE_Z + min(-dz, 0))
+                sls_grid = grid[:, x_sls, z_sls]
+                intersection = ((sls_target == sls_grid) & (sls_target != 0)).sum().item()
+                if intersection > max_int:
+                    max_int = intersection
+                    argmax =(dx, dz, i)
+        return argmax
+
+    def get_intersection(self, grid, dx, dz, rot):
+        x_sls = slice(max(dx, 0), BUILD_ZONE_SIZE_X + min(dx, 0))
+        z_sls = slice(max(dz, 0), BUILD_ZONE_SIZE_Z + min(dz, 0))
+        sls_target = self.target_grids[rot][:, x_sls, z_sls]
+        x_sls = slice(max(-dx, 0), BUILD_ZONE_SIZE_X + min(-dx, 0))
+        z_sls = slice(max(-dz, 0), BUILD_ZONE_SIZE_Z + min(-dz, 0))
+        sls_grid = grid[:, x_sls, z_sls]
+        return ((sls_target == sls_grid) & (sls_target != 0)).sum().item()
+
     def maximal_intersection(self, grid):
         max_int = 0
         for i, admissible in enumerate(self.admissible):

@@ -8,11 +8,10 @@ from gridworld.render import Renderer, setup
 from gridworld.tasks.task import Task, Tasks
 
 from gym.spaces import Dict, Box, Discrete, Space
-from gym import Env, Wrapper
+from gym import Env, Wrapper as gymWrapper
 import gym
 import numpy as np
 from copy import copy
-
 
 class String(Space):
     def __init__(self, ):
@@ -23,6 +22,11 @@ class String(Space):
 
     def contains(self, obj):
         return isinstance(obj, str)
+
+
+class Wrapper(gymWrapper):
+    def __getattr__(self, name):
+        return getattr(self.env, name)
 
 
 class GridWorld(Env):
@@ -298,7 +302,7 @@ class SizeReward(Wrapper):
 def create_env(
         render=True, discretize=True, size_reward=True, select_and_place=True,
         right_placement_scale=1, render_size=(64, 64), target_in_obs=False,
-        vector_state=False,
+        vector_state=False, max_steps=250,
         wrong_placement_scale=0.1, name=''
     ):
     env = GridWorld(
@@ -306,7 +310,7 @@ def create_env(
         discretize=discretize, right_placement_scale=right_placement_scale,
         wrong_placement_scale=wrong_placement_scale, name=name,
         render_size=render_size, target_in_obs=target_in_obs,
-        vector_state=vector_state,
+        vector_state=vector_state, max_steps=max_steps,
     )
     if size_reward:
         env = SizeReward(env)
