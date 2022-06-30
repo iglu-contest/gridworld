@@ -17,7 +17,11 @@ class Viewer(Renderer):
         self.num_keys = [
             key._1, key._2, key._3, key._4, key._5,
             key._6, key._7, key._8, key._9, key._0]
-        self.reticle = None
+        x, y = self.width // 2, self.height // 2
+        n = 10
+        self.reticle = vertex_list(4,
+            ('v2i', (x - n, y, x + n, y, x, y - n, x, y + n))
+        )
 
     def on_mouse_press(self, x, y, button, modifiers):
         """ Called when a mouse button is pressed. See pyglet docs for button
