@@ -314,13 +314,14 @@ class World:
         if place:
             if previous:
                 if agent.inventory[agent.active_block - 1] > 0 and self.build_zone(*previous):
-                    x, y, z = agent.position
-                    y = y - (PLAYER_HEIGHT - 1) + Agent.PAD
-                    bx, by, bz = previous
-                    bx -= 0.5
-                    bz -= 0.5
-                    if not (bx <= x <= bx + 1 and bz <= z <= bz + 1
-                       and (by <= y <= by + 1 or by <= (y + 1) <= by + 1)):
+                    #x, y, z = agent.position
+                    #y = y - (PLAYER_HEIGHT - 1) + Agent.PAD
+                    #bx, by, bz = previous
+                    #bx -= 0.5
+                    #bz -= 0.5
+                    #if not (bx <= x <= bx + 1 and bz <= z <= bz + 1
+                    #   and (by <= y <= by + 1 or by <= (y + 1) <= by + 1)):
+                    if True:
                         self.add_block(previous, agent.active_block)
                         agent.inventory[agent.active_block - 1] -= 1
         if remove and block:
