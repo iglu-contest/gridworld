@@ -12,8 +12,11 @@ from zipfile import ZipFile
 
 if 'IGLU_DATA_PATH' in os.environ:
     DATA_PREFIX = os.path.join(os.environ['IGLU_DATA_PATH'], 'data', 'iglu')
-else:
+elif 'HOME' in os.environ:
     DATA_PREFIX = os.path.join(os.environ['HOME'], '.iglu', 'data', 'iglu')
+else:
+    DATA_PREFIX = os.path.join(
+        os.path.expanduser('~'), '.iglu', 'data', 'iglu')
 
 VOXELWORLD_GROUND_LEVEL = 63
 
@@ -56,7 +59,7 @@ def fix_log(log_string):
     log_string: str
         log_string should be a string of the full log.
         It should be multiple lines, each corresponded to a timestamp,
-        and should be separated by newline character.    
+        and should be separated by newline character.
     """
 
     lines = []
@@ -87,7 +90,7 @@ class IGLUDataset(Tasks):
     """
     Collaborative dataset for the IGLU competition.
 
-    Current version of the dataset covers 31 structures in 128 staged game sessions 
+    Current version of the dataset covers 31 structures in 128 staged game sessions
     resulting in 608 tasks.
     """
     URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
@@ -107,10 +110,10 @@ class IGLUDataset(Tasks):
         dialogs = pd.read_csv(f'{DATA_PREFIX}/dialogs.csv')
         self.tasks = defaultdict(list)
         self.parse_tasks(dialogs, DATA_PREFIX)
-    
+
     def process(self, s):
         return re.sub(r'\$+', '\n', s)
-    
+
     def parse_tasks(self, dialogs, path):
         for sess_id, gr in dialogs.groupby('PartitionKey'):
             utt_seq = []
@@ -136,7 +139,7 @@ class IGLUDataset(Tasks):
                     curr_step = f'{path}/builder-data/{sess_id}/step-{row.StepId}'
                     if not os.path.exists(curr_step):
                         break
-                        # TODO: in this case the multiturn collection was likely 
+                        # TODO: in this case the multiturn collection was likely
                         # "reset" so we need to stop parsing this session. Need to check that.
                     with open(curr_step) as f:
                         step_data = json.load(f)
@@ -153,18 +156,18 @@ class IGLUDataset(Tasks):
                     else:
                         blocks = blocks[:i] + blocks[i + 1:]
                         utt_seq[i] = utt_seq[i] + utt_seq[i + 1]
-                        utt_seq = utt_seq[:i + 1] + utt_seq[i + 2:] 
+                        utt_seq = utt_seq[:i + 1] + utt_seq[i + 2:]
                 i += 1
             if len(blocks) > 0:
                 task = Subtasks(utt_seq, blocks, **self.task_kwargs)
                 self.tasks[structure_id].append(task)
-    
+
     def reset(self):
         sample = np.random.choice(list(self.tasks.keys()))
         sess_id = np.random.choice(len(self.tasks[sample]))
         self.current = self.tasks[sample][sess_id]
         return self.current.reset()
-    
+
     def __len__(self):
         return sum(len(sess.structure_seq) for sess in sum(self.tasks.values(), []))
 

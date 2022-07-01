@@ -4,7 +4,11 @@ import os
 if os.environ.get('IGLU_HEADLESS', '1') == '1':
     pyglet.options["headless"] = True
 from gridworld.core.world import Agent, World
-from gridworld.render import Renderer, setup
+try:
+    from gridworld.render import Renderer, setup
+except ImportError as e:
+    print("Error: Could not load renderer")
+    print(e)
 from gridworld.tasks.task import Task, Tasks
 
 from gym.spaces import Dict, Box, Discrete, Space
