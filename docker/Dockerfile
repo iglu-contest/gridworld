@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libegl1 libegl1:i386 \
     libgles2 libgles2:i386 
     # rm -rf /var/lib/apt/lists/* # buildkit
-ADD 10_nvidia.json /usr/share/glvnd/egl_vendor.d/
+ADD ./docker/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libglvnd-dev libglvnd-dev:i386 \
@@ -40,7 +40,9 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     libfreetype6 \
-    curl
+    curl \
+    git \
+    vim
 
 ENV CONDALINK="https://repo.anaconda.com/miniconda/Miniconda3-py39_4.11.0-Linux-x86_64.sh"
 RUN curl -so "$ROOT/miniconda.sh" $CONDALINK \
