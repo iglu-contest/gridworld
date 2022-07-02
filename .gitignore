@@ -1,3 +1,7 @@
 *.png
 *.pyc
 *.ipynb
+wandb/*
+*.mp4
+*builder-data*
+*.csv

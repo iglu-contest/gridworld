@@ -1,7 +1,4 @@
-# Use the official image as a parent image
-FROM tensorflow/tensorflow:2.5.0-gpu
-# FROM nvidia/cuda:11.2.1-cudnn8-runtime-ubuntu18.04
-# FROM nvidia/opengl:1.2-glvnd-devel-ubuntu18.04
+FROM nvidia/cuda:11.2.1-cudnn8-runtime-ubuntu20.04
 
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -9,7 +6,8 @@ RUN dpkg --add-architecture i386 && \
     libxdmcp6 libxdmcp6:i386 \
     libxcb1 libxcb1:i386 \
     libxext6 libxext6:i386 \
-    libx11-6 libx11-6:i386 
+    libx11-6 libx11-6:i386 \
+    libfreetype6:i386
     # rm -rf /var/lib/apt/lists/* # buildkit
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=graphics,compat32,utility
@@ -67,10 +65,14 @@ RUN pip3 install --upgrade pip && \
     PyOpenGL==3.1.5 \
     tqdm==4.62.3 \ 
     PILLOW==9.0.1 \
-    opencv-python \
+    opencv-python==4.5.5.64 \
     pyglet==1.5.21 \
-    numba \
+    numba==0.55.2 \
     scipy==1.7.3 \
-    numpy==1.21.5
+    numpy==1.21.5 \
+    pandas==1.3.5 \
+    filelock==3.7.0
 ENV PYOPENGL_PLATFORM=egl
 ENV MUJOCO_GL=egl
+ADD . /gridworld
+RUN cd /gridworld && python setup.py install && cd / && rm -rf gridworld

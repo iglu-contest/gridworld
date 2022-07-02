@@ -10,7 +10,7 @@ WALKING_SPEED = 5
 FLYING_SPEED = 15
 
 GRAVITY = 20.0
-MAX_JUMP_HEIGHT = 1.0 # About the height of a block.
+MAX_JUMP_HEIGHT = 1.2 # About the height of a block.
 # To derive the formula for calculating jump speed, first solve
 #    v_t = v_0 + a * t
 # for the time at which you achieve maximum height, where a is the acceleration
@@ -72,41 +72,53 @@ def normalize(position):
     x, y, z = (int(round(x)), int(round(y)), int(round(z)))
     return (x, y, z)
 
-
-def sectorize(position):
-    """ Returns a tuple representing the sector for the given `position`.
-
-    Parameters
-    ----------
-    position : tuple of len 3
-
-    Returns
-    -------
-    sector : tuple of len 3
-
-    """
-    x, y, z = normalize(position)
-    x, y, z = x // SECTOR_SIZE, y // SECTOR_SIZE, z // SECTOR_SIZE
-    return (x, 0, z)
-
-def tex_coord(x, y, n=4):
+def tex_coord(x, y, n=4, split=False, side_n=0):
     """ Return the bounding vertices of the texture square.
 
     """
     m = 1.0 / n
+    m1 = 1.0 / n / (2 if split else 1)
+    if split:
+        if side_n == 0:
+            cx, cy = 0, 0
+        elif side_n == 1:
+            cx, cy = 0, 0.125
+        elif side_n == 2:
+            cx, cy = 0.125, 0
+        elif side_n == 3:
+            cx, cy = 0.125, 0.125
+    else:
+        cx, cy = 0, 0
     dx = x * m
     dy = y * m
-    return dx, dy, dx + m, dy, dx + m, dy + m, dx, dy + m
+    return (
+        cx + dx,     cy + dy, 
+        cx + dx + m1, cy + dy, 
+        cx + dx + m1, cy + dy + m1, 
+        cx + dx,     cy + dy + m1
+    )
 
 
-def tex_coords(*side, top_only=False):
+def tex_coords(*side, top_only=False, split=False):
     """ Return a list of the texture squares for the top, bottom and side.
 
     """
-    side = tex_coord(*side)
     result = []
-    for _ in range(1 if top_only else 6):
-        result.extend(side)
+    if split:
+        if top_only:
+            return side
+        else:
+            # for _ in range(6):
+            result += tex_coord(*side, split=split, side_n=1)
+            result += tex_coord(*side, split=split, side_n=2)
+            result += tex_coord(*side, split=split, side_n=0)
+            result += tex_coord(*side, split=split, side_n=0)
+            result += tex_coord(*side, split=split, side_n=3)
+            result += tex_coord(*side, split=split, side_n=3)
+    else:
+        side = tex_coord(*side)
+        for _ in range(1 if top_only else 6):
+            result.extend(side)
     return result
 
 
@@ -122,12 +134,12 @@ YELLOW = 6
 id2texture = {
     WHITE: tex_coords(0, 0),
     GREY: tex_coords(1, 0),
-    BLUE: tex_coords(2, 0),
-    GREEN: tex_coords(3, 0),
-    RED: tex_coords(0, 1),
-    ORANGE: tex_coords(1, 1),
-    PURPLE: tex_coords(2, 1),
-    YELLOW: tex_coords(3, 1)
+    BLUE: tex_coords(2, 0, split=True),
+    GREEN: tex_coords(3, 0, split=True),
+    RED: tex_coords(0, 1, split=True),
+    ORANGE: tex_coords(1, 1, split=True),
+    PURPLE: tex_coords(2, 1, split=True),
+    YELLOW: tex_coords(3, 1, split=True)
 }
 
 id2top_texture = {

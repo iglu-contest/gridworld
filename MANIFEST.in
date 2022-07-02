@@ -1,1 +1,2 @@
 include gridworld/texture.png
+include gridworld/data/task_names.txt

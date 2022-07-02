@@ -2,22 +2,26 @@ from pyglet.window import key, mouse
 from pyglet.graphics import vertex_list
 from pyglet.gl import *
 
-from .control import Agent
-from .world import World
 from .render import Renderer
+
+from gridworld.core.world import Agent, World
 
 
 class Viewer(Renderer):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, overlay=True, **kwargs) -> None:
         self.exclusive = False
         self.world = World()
-        self.agent = Agent(self.world, sustain=True)
+        self.agent = Agent(sustain=True)
         super().__init__(model=self.world, agent=self.agent, *args, **kwargs)
-        self.overlay = True
+        self.overlay = overlay
         self.num_keys = [
             key._1, key._2, key._3, key._4, key._5,
             key._6, key._7, key._8, key._9, key._0]
-        self.reticle = None
+        x, y = self.width // 2, self.height // 2
+        n = 10
+        self.reticle = vertex_list(4,
+            ('v2i', (x - n, y, x + n, y, x, y - n, x, y + n))
+        )
 
     def on_mouse_press(self, x, y, button, modifiers):
         """ Called when a mouse button is pressed. See pyglet docs for button
@@ -40,7 +44,7 @@ class Viewer(Renderer):
             right_click = (button == mouse.RIGHT) or ((button == mouse.LEFT) and (modifiers & key.MOD_CTRL))
             left_click = button == mouse.LEFT
             if right_click or left_click:
-                self.agent.place_or_remove_block(remove=left_click, place=right_click)
+                self.world.place_or_remove_block(self.agent, remove=left_click, place=right_click)
         else:
             self.set_exclusive_mouse(True)
     
@@ -58,7 +62,7 @@ class Viewer(Renderer):
         """
         if self.exclusive:
             m = 0.15
-            self.agent.move_camera(dx * m, dy * m)
+            self.world.move_camera(self.agent, dx * m, dy * m)
 
     def set_exclusive_mouse(self, exclusive):
         """ If `exclusive` is True, the game will capture the mouse, if False
@@ -100,7 +104,7 @@ class Viewer(Renderer):
         elif symbol in self.num_keys:
             index = (symbol - self.num_keys[0]) % len(self.agent.inventory) + 1
             inventory = index
-        self.agent.movement(strafe, jump, inventory)
+        self.world.movement(self.agent, strafe, jump, inventory)
 
     def on_key_release(self, symbol, modifiers):
         """ Called when the player releases a key. See pyglet docs for key
@@ -123,7 +127,7 @@ class Viewer(Renderer):
             strafe[1] += 1
         elif symbol == key.D:
             strafe[1] -= 1
-        self.agent.movement(strafe, jump=False, inventory=None)
+        self.world.movement(self.agent, strafe, jump=False, inventory=None)
     
     def on_resize(self, width, height):
         """ Called when the window is resized to a new `width` and `height`.
