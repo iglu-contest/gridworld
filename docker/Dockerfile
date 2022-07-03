@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.2.1-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:11.6.1-cudnn8-runtime-ubuntu20.04
 
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -10,7 +10,7 @@ RUN dpkg --add-architecture i386 && \
     libfreetype6:i386
     # rm -rf /var/lib/apt/lists/* # buildkit
 ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=graphics,compat32,utility
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \     
     echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf # buildkit
 ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib/i386-linux-gnu:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:$LD_LIBRARY_PATH"
