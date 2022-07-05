@@ -85,7 +85,7 @@ class Viewer(Renderer):
 
         """
         strafe = [0, 0]
-        jump = False
+        dy = 0
         inventory = None
         if symbol == key.W:
             strafe[0] -= 1
@@ -96,15 +96,17 @@ class Viewer(Renderer):
         elif symbol == key.D:
             strafe[1] += 1
         elif symbol == key.SPACE:
-            jump = True
+            dy = 1
         elif symbol == key.ESCAPE:
             self.set_exclusive_mouse(False)
         elif symbol == key.TAB:
             self.agent.flying = not self.agent.flying
+        elif symbol == key.Z and self.agent.flying:
+            dy = -1
         elif symbol in self.num_keys:
             index = (symbol - self.num_keys[0]) % len(self.agent.inventory) + 1
             inventory = index
-        self.world.movement(self.agent, strafe, jump, inventory)
+        self.world.movement(self.agent, strafe, dy, inventory)
 
     def on_key_release(self, symbol, modifiers):
         """ Called when the player releases a key. See pyglet docs for key
@@ -127,7 +129,7 @@ class Viewer(Renderer):
             strafe[1] += 1
         elif symbol == key.D:
             strafe[1] -= 1
-        self.world.movement(self.agent, strafe, jump=False, inventory=None)
+        self.world.movement(self.agent, strafe, dy=0, inventory=None)
     
     def on_resize(self, width, height):
         """ Called when the window is resized to a new `width` and `height`.

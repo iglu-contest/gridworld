@@ -216,6 +216,8 @@ class World:
             self._update(agent, dt / m)
         if not agent.sustain:
             agent.strafe = [0, 0]
+            if agent.flying:
+                agent.dy = 0
 
     def _update(self, agent, dt):
         """
@@ -249,7 +251,7 @@ class World:
             else:
                 agent.time_int_steps = 2
             agent.dy = max(agent.dy, -TERMINAL_VELOCITY)
-            dy += agent.dy * dt
+        dy += agent.dy * dt
         # collisions
         x, y, z = agent.position
         cand = (x + dx, y + dy, z + dz)
@@ -339,11 +341,15 @@ class World:
         y = max(-90, min(90, y))
         agent.rotation = (x, y)
 
-    def movement(self, agent, strafe: list, jump: bool, inventory: Optional[int] = None):
+    def movement(self, agent, 
+            strafe: list, dy: float, inventory: Optional[int] = None, 
+        ):
         agent.strafe[0] += strafe[0]
         agent.strafe[1] += strafe[1]
-        if jump and agent.dy == 0:
-            agent.dy = JUMP_SPEED
+        if dy != 0 and agent.dy == 0:
+            agent.dy = JUMP_SPEED * dy
+        if agent.flying and dy == 0:
+            agent.dy = 0
         if inventory is not None:
             if inventory < 1 or inventory > 6:
                 raise ValueError(f'Bad inventory id: {inventory}')
@@ -351,13 +357,13 @@ class World:
     ### END AGENT CONTROL
 
     ### UNIFIED AGENT CONTROL
-    def parse_action(self, action):
+    def parse_walking_discrete_action(self, action):
         # 0 noop; 1 forward; 2 back; 3 left; 4 right; 5 jump; 6-11 hotbar; 12 camera left;
         # 13 camera right; 14 camera up; 15 camera down; 16 attack; 17 use;
         # action = list(action).index(1)
         strafe = [0, 0]
         camera = [0, 0]
-        jump = False
+        dy = 0
         inventory = None
         remove = False
         add = False
@@ -370,7 +376,7 @@ class World:
         elif action == 4:
             strafe[1] += 1
         elif action == 5:
-            jump = True
+            dy = 1
         elif 6 <= action <= 11:
             inventory = action - 5
         elif action == 12:
@@ -385,14 +391,60 @@ class World:
             remove = True
         elif action == 17:
             add = True
+        return strafe, dy, inventory, camera, remove, add
+
+    def parse_walking_action(self, action):
+        strafe = [0,0]
+        if action['forward']:
+            strafe[0] += -1
+        if action['back']:
+            strafe[0] += 1
+        if action['left']:
+            strafe[1] += -1
+        if action['right']:
+            strafe[1] += 1
+        jump = int(action['jump'])
+        if action['hotbar'] == 0:
+            inventory = None
+        else:
+            inventory = action['hotbar']
+        camera = action['camera']
+        remove = bool(action['attack'])
+        add = bool(action['use'])
         return strafe, jump, inventory, camera, remove, add
 
-    def step(self, agent, action, select_and_place=False):
-        strafe, jump, inventory, camera, remove, add = self.parse_action(action)
+    def parse_flying_action(self, action):
+        """
+        Args:
+            action: dictionary with keys:
+              * 'movement':  Box(low=-1, high=1, shape=(3,)) - forward/backward, left/right, 
+                  up/down movement 
+              * 'camera': Box(low=[-180, -90], high=[90, 180], shape=(2,)) - camera movement
+              * 'inventory': Discrete(7) - 0 for no-op, 1-6 for selecting block color
+              * 'placement': Discrete(3) - 0 for no-op, 1 for placement, 2 for breaking
+        """
+        strafe = list(action['movement'][:2])
+        dy = action['movement'][2]
+        camera = list(action['camera'])
+        inventory = action['inventory'] if action['inventory'] != 0 else None
+        add = action['placement'] == 1
+        remove = action['placement'] == 2
+        return strafe, dy, inventory, camera, remove, add
+
+    def step(self, agent, action, select_and_place=False, action_space='walking', discretize=True):
+        if action_space == 'walking':
+            if discretize:
+                tup = self.parse_walking_discrete_action(action)
+            else:
+                tup = self.parse_walking_action(action)
+        elif action_space == 'flying':
+            tup = self.parse_flying_action(action)
+
+        strafe, dy, inventory, camera, remove, add = tup
         if select_and_place and inventory is not None:
             add = True
             remove = False
-        self.movement(agent, strafe=strafe, jump=jump, inventory=inventory)
+        self.movement(agent, strafe=strafe, dy=dy, inventory=inventory)
         self.move_camera(agent, *camera)
         self.place_or_remove_block(agent, remove=remove, place=add)
         self.update(agent, dt=1/20.)
