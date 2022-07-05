@@ -419,7 +419,7 @@ class World:
             action: dictionary with keys:
               * 'movement':  Box(low=-1, high=1, shape=(3,)) - forward/backward, left/right, 
                   up/down movement 
-              * 'camera': Box(low=[-180, -90], high=[180, 90], shape=(2,)) - camera movement
+              * 'camera': Box(low=[-180, -90], high=[180, 90], shape=(2,)) - camera movement (yaw, pitch)
               * 'inventory': Discrete(7) - 0 for no-op, 1-6 for selecting block color
               * 'placement': Discrete(3) - 0 for no-op, 1 for placement, 2 for breaking
         """
