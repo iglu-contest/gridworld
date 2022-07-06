@@ -1,10 +1,6 @@
-import pyglet
 import warnings
 import os
-if os.environ.get('IGLU_HEADLESS', '1') == '1':
-    pyglet.options["headless"] = True
 from gridworld.core.world import Agent, World
-from gridworld.render import Renderer, setup
 from gridworld.tasks.task import Task, Tasks
 
 from gym.spaces import Dict, Box, Discrete, Space
@@ -92,6 +88,7 @@ class GridWorld(Env):
         self.name = name
         self.do_render = render
         if render:
+            from gridworld.render import Renderer, setup
             self.renderer = Renderer(self.world, self.agent,
                                      width=self.render_size[0], height=self.render_size[1],
                                      caption='Pyglet', resizable=False)
@@ -102,6 +99,7 @@ class GridWorld(Env):
 
     def enable_renderer(self):
         if self.renderer is None:
+            from gridworld.render import Renderer, setup
             self.reset()
             self.world.deinit()
             self.renderer = Renderer(self.world, self.agent,
