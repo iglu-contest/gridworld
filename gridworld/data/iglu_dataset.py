@@ -245,8 +245,8 @@ class IGLUDataset(Tasks):
 
 
 class SingleTurnIGLUDataset(IGLUDataset):
-    SINGLE_TURN_INSTRUCTION_FILENAME = 'HitsTableSingleTurn.csv'
-    MULTI_TURN_DIRNAME = 'mturk-multi-turn'
+    SINGLE_TURN_INSTRUCTION_FILENAME = 'single_turn_instructions.csv'
+    URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip'
 
     def get_instructions(self, data_path):
         return pd.read_csv(os.path.join(
@@ -257,7 +257,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
         """Returns the path where iglu dataset will be downloaded and cached.
 
         It can be set using the environment variable IGLU_DATA_PATH. Otherwise,
-        it will be `~/.iglu/data/single_turn`.
+        it will be `~/.iglu/data/single_turn_dataset`.
 
         Returns
         -------
@@ -266,25 +266,27 @@ class SingleTurnIGLUDataset(IGLUDataset):
         """
         if 'IGLU_DATA_PATH' in os.environ:
             data_path = os.path.join(
-                os.environ['IGLU_DATA_PATH'], 'data', 'single_turn')
+                os.environ['IGLU_DATA_PATH'], 'data', 'single_turn_dataset')
         elif 'HOME' in os.environ:
             data_path = os.path.join(
-                os.environ['HOME'], '.iglu', 'data', 'single_turn')
+                os.environ['HOME'], '.iglu', 'data', 'single_turn_dataset')
         else:
             data_path = os.path.join(
-                os.path.expanduser('~'), '.iglu', 'data', 'single_turn')
+                os.path.expanduser('~'), '.iglu', 'data', 'single_turn_dataset')
         return data_path
 
     def download_dataset(self, data_path, force_download):
-        # TODO include all data in the same .zip file
-        # Download multi-turn 2021 data
-        super().download_dataset(
-            os.path.join(data_path, self.MULTI_TURN_DIRNAME), force_download)
         instruction_filepath = os.path.join(
             data_path, self.SINGLE_TURN_INSTRUCTION_FILENAME)
-        if not os.path.exists(instruction_filepath):
-            # TODO download 2022 zip file and uncompress
-            raise IOError(f'File {instruction_filepath} does not exists')
+        path = f'{data_path}/single_turn_iglu_dataset.zip'
+        if (not os.path.exists(instruction_filepath) or force_download):
+            download(
+                url=SingleTurnIGLUDataset.URL,
+                destination=path,
+                data_prefix=data_path
+            )
+            with ZipFile(path) as zfile:
+                zfile.extractall(data_path)
 
     def create_task(self, instruction, initial_grid, target_grid):
         task = Task(
@@ -329,21 +331,10 @@ class SingleTurnIGLUDataset(IGLUDataset):
         dialogs = dialogs[
             (dialogs.IsHITQualified == True) &
             (dialogs.InitializedWorldPath.notna())]
-        # Use value in InitializedWorldGameId if InitializedWorldStructureId
-        # is null
-        dialogs.loc[:,'initial_structure'] = \
-            dialogs.InitializedWorldStructureId.fillna(
-                dialogs.InitializedWorldGameId)
-        dialogs.loc[:,'intial_world_dirname'] = \
-            dialogs.InitializedWorldPath.apply(
-                lambda path: path.replace('mturk-vw', self.MULTI_TURN_DIRNAME))
-        # Mistake in data, some rows where saved with incorrect path
-        dialogs.loc[:,'target_world_dirname'] = \
-            dialogs.ActionDataPath.apply(
-                lambda path: path.replace('game-game', 'game'))
         for _, row in dialogs.iterrows():
+            assert row.InitializedWorldStructureId is not None
             # Read initial structure
-            initial_world_path = os.path.join(path, row.intial_world_dirname)
+            initial_world_path = os.path.join(path, row.InitializedWorldPath)
             if not os.path.exists(initial_world_path):
                 print(f'File {initial_world_path} not found')
                 continue
@@ -356,10 +347,9 @@ class SingleTurnIGLUDataset(IGLUDataset):
 
             # Read target structure
             target_world_filepath = os.path.join(
-                path, row.target_world_dirname,
-                f'{row.PartitionKey}-step-action')
+                path, row.ActionDataPath, f'{row.PartitionKey}-step-action')
             if not os.path.exists(target_world_filepath):
-                print(f'File {target_world_filepath} not found')
+                print(f'Target file for game {row.PartitionKey} not found')
                 continue
             with open(target_world_filepath, 'r') as target_file:
                 target_step = json.load(target_file)
@@ -368,15 +358,14 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 for block in target_step['worldEndingState']['blocks']
             ]
             if len(target_world_blocks) == 0:
-                print(f'No target blocks for structure {row.PartitionKey}')
+                print(f'No target blocks for game {row.PartitionKey}')
                 continue
 
             # Construct task
             task = self.create_task(
                 row.InputInstruction, initial_world_blocks, target_world_blocks)
 
-            assert row.initial_structure is not None
-            self.tasks[row.initial_structure].append(task)
+            self.tasks[row.InitializedWorldStructureId].append(task)
 
     def __iter__(self):
         for task_id, tasks in self.tasks.items():
