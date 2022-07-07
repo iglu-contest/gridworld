@@ -60,6 +60,61 @@ while not done:
   obs, reward, done, info = env.step(action)
 ```
 
+### Action spaces:
+
+Two action spaces are available in Gridworld:
+
+**Walking actions** allow the agent to move with gravity enabled, jump, place, break, and select blocks from inventory. 
+
+```
+env = gym.make('IGLUGridworld-v0', action_space='walking')
+print(env.action_space) # Discrete(18)
+```
+
+The action space format is the following:
+
+  * 0 - no-op
+  * 1 - step forward
+  * 2 - step backward
+  * 3 - step left 
+  * 4 - step right
+  * 5 - jump
+  * 6-11 - inventory select
+  * 12 - move the camera left
+  * 13 - move the camera right
+  * 14 - move the camera up
+  * 15 - move the camera down
+  * 16 - break block 
+  * 17 - place block
+
+For each movement action, the agent steps for about 0.25 of one block. Camera movement changes each angle for 5 degrees. 
+
+**Flying actions** allow the agent to fly freely within the building zone. Placement actions are the same and movement is specified by a continuous vector.
+
+```
+env = gym.make('IGLUGridworld-v0', action_space='flying')
+print(env.action_space)
+```
+
+Action space format:
+
+```
+Dict(
+  movement: Box(low=-1, high=1, shape=(3,)),
+  camera: Box(low=-5, high=5, shape=(2,)),
+  inventory: Discrete(7),
+  placement: Discrete(3)
+)
+```
+
 ## Working with the IGLU dataset 
+
+IGLU dataset provides a convenient loader for RL tasks. Here is an example of how to use it:
+
+```
+from gridworld.data import IGLUDataset
+
+
+```
 
 ## Known Issues
