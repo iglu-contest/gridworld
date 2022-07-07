@@ -88,7 +88,7 @@ class Renderer(Window):
         glViewport(0, 0, max(1, viewport[0]), max(1, viewport[1]))
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(120.0, width / float(height), 0.1, 30.0)
+        gluPerspective(90.0, width / float(height), 0.1, 30.0)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         x, y = self.agent.rotation
