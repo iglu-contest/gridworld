@@ -95,10 +95,14 @@ class IGLUDataset(Tasks):
     """
     DATASET_URL = {
         "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
-    } # Dictionary holding dataset version to dataset URI mapping
+    }  # Dictionary holding dataset version to dataset URI mapping
 
     def __init__(self, dataset_version="v0.1.0-rc1", task_kwargs=None, force_download=False) -> None:
         self.dataset_version = dataset_version
+        if dataset_version not in IGLUDataset.DATASET_URL.keys():
+            raise Exception(
+                "Unknown dataset_version:{} provided.".format(dataset_version))
+
         if task_kwargs is None:
             task_kwargs = {}
         self.task_kwargs = task_kwargs
