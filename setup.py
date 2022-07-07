@@ -6,7 +6,7 @@ with open("requirements.txt", "r") as fh:
 
 setup(
     name='gridworld',
-    version='0.1',
+    version='0.1-rc1',
     description='',
     long_description='',
     long_description_content_type="text/markdown",

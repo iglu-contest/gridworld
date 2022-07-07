@@ -20,13 +20,14 @@ VOXELWORLD_GROUND_LEVEL = 63
 block_colour_map = {
     # voxelworld's colour id : iglu colour id
     0: 0,  # air
-    57: 1, # blue
-    50: 6, # yellow
-    59: 2, # green
-    47: 4, # orange
-    56: 5, # purple
+    57: 1,  # blue
+    50: 6,  # yellow
+    59: 2,  # green
+    47: 4,  # orange
+    56: 5,  # purple
     60: 3  # red
 }
+
 
 def fix_xyz(x, y, z):
     XMAX = 11
@@ -50,6 +51,7 @@ def fix_xyz(x, y, z):
     new_z -= COORD_SHIFT[2]
 
     return new_x, new_y, new_z
+
 
 def fix_log(log_string):
     """
@@ -83,6 +85,7 @@ def fix_log(log_string):
 
     return "\n".join(lines)
 
+
 class IGLUDataset(Tasks):
     """
     Collaborative dataset for the IGLU competition.
@@ -90,15 +93,19 @@ class IGLUDataset(Tasks):
     Current version of the dataset covers 31 structures in 128 staged game sessions 
     resulting in 608 tasks.
     """
-    URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
-    def __init__(self, task_kwargs=None, force_download=False) -> None:
+    DATASET_URL = {
+        "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
+    } # Dictionary holding dataset version to dataset URI mapping
+
+    def __init__(self, dataset_version="v0.1.0-rc1", task_kwargs=None, force_download=False) -> None:
+        self.dataset_version = dataset_version
         if task_kwargs is None:
             task_kwargs = {}
         self.task_kwargs = task_kwargs
         path = f'{DATA_PREFIX}/iglu_dataset.zip'
         if not os.path.exists(f'{DATA_PREFIX}/dialogs.csv') or force_download:
             download(
-                url=IGLUDataset.URL,
+                url=IGLUDataset.DATASET_URL[self.dataset_version],
                 destination=path,
                 data_prefix=DATA_PREFIX
             )
@@ -107,10 +114,10 @@ class IGLUDataset(Tasks):
         dialogs = pd.read_csv(f'{DATA_PREFIX}/dialogs.csv')
         self.tasks = defaultdict(list)
         self.parse_tasks(dialogs, DATA_PREFIX)
-    
+
     def process(self, s):
         return re.sub(r'\$+', '\n', s)
-    
+
     def parse_tasks(self, dialogs, path):
         for sess_id, gr in dialogs.groupby('PartitionKey'):
             utt_seq = []
@@ -123,26 +130,30 @@ class IGLUDataset(Tasks):
                 if row.StepId % 2 == 1:
                     if isinstance(row.instruction, str):
                         utt_seq.append([])
-                        utt_seq[-1].append(f'<Architect> {self.process(row.instruction)}')
+                        utt_seq[-1].append(
+                            f'<Architect> {self.process(row.instruction)}')
                     elif isinstance(row.Answer4ClarifyingQuestion, str):
-                        utt_seq[-1].append(f'<Architect> {self.process(row.Answer4ClarifyingQuestion)}')
+                        utt_seq[-1].append(
+                            f'<Architect> {self.process(row.Answer4ClarifyingQuestion)}')
                 else:
                     if not row.IsHITQualified:
                         continue
                     if isinstance(row.ClarifyingQuestion, str):
-                        utt_seq[-1].append(f'<Builder> {self.process(row.ClarifyingQuestion)}')
+                        utt_seq[-1].append(
+                            f'<Builder> {self.process(row.ClarifyingQuestion)}')
                         continue
                     blocks.append([])
                     curr_step = f'{path}/builder-data/{sess_id}/step-{row.StepId}'
                     if not os.path.exists(curr_step):
                         break
-                        # TODO: in this case the multiturn collection was likely 
+                        # TODO: in this case the multiturn collection was likely
                         # "reset" so we need to stop parsing this session. Need to check that.
                     with open(curr_step) as f:
                         step_data = json.load(f)
                     for x, y, z, bid in step_data['worldEndingState']['blocks']:
                         y = y - VOXELWORLD_GROUND_LEVEL - 1
-                        bid = block_colour_map.get(bid, 5) # TODO: some blocks have id 1, check why
+                        # TODO: some blocks have id 1, check why
+                        bid = block_colour_map.get(bid, 5)
                         blocks[-1].append((x, y, z, bid))
             i = 0
             while i < len(blocks):
@@ -153,18 +164,18 @@ class IGLUDataset(Tasks):
                     else:
                         blocks = blocks[:i] + blocks[i + 1:]
                         utt_seq[i] = utt_seq[i] + utt_seq[i + 1]
-                        utt_seq = utt_seq[:i + 1] + utt_seq[i + 2:] 
+                        utt_seq = utt_seq[:i + 1] + utt_seq[i + 2:]
                 i += 1
             if len(blocks) > 0:
                 task = Subtasks(utt_seq, blocks, **self.task_kwargs)
                 self.tasks[structure_id].append(task)
-    
+
     def reset(self):
         sample = np.random.choice(list(self.tasks.keys()))
         sess_id = np.random.choice(len(self.tasks[sample]))
         self.current = self.tasks[sample][sess_id]
         return self.current.reset()
-    
+
     def __len__(self):
         return sum(len(sess.structure_seq) for sess in sum(self.tasks.values(), []))
 

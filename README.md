@@ -13,4 +13,3 @@ pip3 install iglu-gridworld==v0.1-rc1
 
 ```
 iglu-gridworld-demo 
-```

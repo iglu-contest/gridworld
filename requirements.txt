@@ -1,6 +1,6 @@
 gym==0.21.0
 PyOpenGL==3.1.5
-tqdm==4.62.3
+tqdm
 PILLOW==9.0.1
 opencv-python==4.5.5.64
 pyglet==1.5.21
