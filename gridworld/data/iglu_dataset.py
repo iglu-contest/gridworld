@@ -87,17 +87,22 @@ def fix_log(log_string):
 
 
 class IGLUDataset(Tasks):
-    """
-    Collaborative dataset for the IGLU competition.
-
-    Current version of the dataset covers 31 structures in 128 staged game sessions 
-    resulting in 608 tasks.
-    """
     DATASET_URL = {
         "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
     } # Dictionary holding dataset version to dataset URI mapping
 
     def __init__(self, dataset_version="v0.1.0-rc1", task_kwargs=None, force_download=False) -> None:
+        """
+        Collaborative dataset for the IGLU competition.
+
+        Current version of the dataset covers 31 structures in 128 staged game sessions 
+        resulting in 608 tasks.
+
+        Args:
+            dataset_version: Which dataset version to use. 
+            task_kwargs: Task-class specific kwargs. For reference see gridworld.task.Task class
+            force_download: Whether to force dataset downloading
+        """
         self.dataset_version = dataset_version
         if task_kwargs is None:
             task_kwargs = {}
