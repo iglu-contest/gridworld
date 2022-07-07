@@ -87,13 +87,12 @@ The action space format is the following:
   * 16 - break block 
   * 17 - place block
 
-For each movement action, the agent steps for about 0.25 of one block. Camera movement changes each angle for 5 degrees. 
+For each movement action, the agent steps for about 0.25 of one block. Camera movement changes each angle by 5 degrees. 
 
 **Flying actions** allow the agent to fly freely within the building zone. Placement actions are the same and movement is specified by a continuous vector.
 
 ```
 env = gym.make('IGLUGridworld-v0', action_space='flying')
-print(env.action_space)
 ```
 
 Action space format:
@@ -109,12 +108,65 @@ Dict(
 
 ## Working with the IGLU dataset 
 
+By default, the environment requires a task object to run.
 IGLU dataset provides a convenient loader for RL tasks. Here is an example of how to use it:
 
 ```
+import gym
 from gridworld.data import IGLUDataset
 
+dataset = IGLUDataset(dataset_version='v0.1.0-rc1') 
+# leave dataset_version empty to access the most recent version of the dataset.
+
+env = gym.make('IGLUGridworld-v0')
+env.set_task_generator(dataset)
+```
+
+In this example, we download the dataset of tasks for RL env. 
+Internally, on each `.reset()` of the env, the dataset samples a random task and makes it active in the env. The `Task` object is responsible for calculating the reward, providing the text part of the observation, and determining if the episode has ended.
+
+The structure of the IGLU dataset is following. The dataset consists of structures that represent overall collaboration goals. For each structure, we have several collaboration sessions that pair architects with builders to build each particular structure. Each session consists of a sequence of "turns". Each turn represents an *atomic* instruction and corresponding changes of the blocks in the world. The structure of the `Task` object is following:
+
+  * `target_grid` - target blocks configuration that needs to be built
+  * `starting_grid` - optional, blocks for the environment to begin the episode with.
+  * `chat` - full conversation between the architect and builder, including the most recent instruction
+  * `last_instruction` - last utterance of the architect
+
+Sometimes, the instructions can be ambiguous and the builder asks a clarifying question which the architect answers. In the latter case, `last_instruction` will contain three utterances: an instruction, a clarifying question, and an answer to that question. Otherwise, `last_instruction` is just one utterance of the architect.
+
+In the example above, the dataset object is structured as follows:
 
 ```
+# .tasks is a dict mapping from structure to a list of sessions of interaction
+dataset.tasks 
+
+dataset.tasks['']
+```
+
+The dataset is downloaded and parsed automatically. Below you will find the structure of the dataset:
+
+```
+dialogs.csv
+builder-data/
+  ...
+  1-c118/ # session id - structure_id
+    step-2
+  ...
+  9-c118/
+    step-2
+    step-4
+    step-6
+  1-c120/
+    step-2
+  ...
+  23-c126/
+    step-2
+    step-4
+    step-6
+    step-8
+```
+
+Here, `dialog.csv` contains the utterances of architects and builders solving different tasks in 
+different sessions. The `builder-data/` directory contains builder behavior recorded by the voxel.js engine. Right now we extract only the resulting grids and use them as targets.
 
 ## Known Issues
