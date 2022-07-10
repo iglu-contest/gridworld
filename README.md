@@ -106,6 +106,34 @@ Dict(
 )
 ```
 
+### Observation space
+
+Observation space format:
+
+```
+Dict(
+  inventory: Box(low=0, high=20, shape=(6,)),
+  compass: Box(low=-180, high=180, shape=(1,)),
+  dialog: String(),
+  pov: Box(low=0, high=255, shape=(64, 64, 3))
+)
+```
+
+Here, `inventory` indicates the total blocks available to the agent (per color).
+The `compass` component shows the angle between the agent's yaw angle and the North direction.
+The `dialog` value is the full previous dialog and the most recent instruction to execute.
+Finally, `pov` is an ego-centric image of the agent's observation of the world.
+Note that **this space will be used during the evaluation.**
+However, it is possible to access other fields of the environment, for example, during training.
+The `vector_state=True` passed as keyword argument in `gym.make` will return, in addition to previous fields,
+
+```
+agentPos: Box(low=[-8, -2, -8, -90, 0], high=[8, 12, 8, 90, 360], shape=(5,)),
+grid: Box(low=-1, high=7, shape=(9, 11, 11))
+```
+
+It is also possible to make a target grid a part of the observation space. To do that, pass `target_in_obs=True` to `gym.make`. This will add another key to the observation space with the same structure as the `grid` component. The name of a new component is `target_grid`. This part of the space remains fixed within an episode.
+
 ## Working with the IGLU dataset 
 
 By default, the environment requires a task object to run.
@@ -123,9 +151,9 @@ env.set_task_generator(dataset)
 ```
 
 In this example, we download the dataset of tasks for RL env. 
-Internally, on each `.reset()` of the env, the dataset samples a random task and makes it active in the env. The `Task` object is responsible for calculating the reward, providing the text part of the observation, and determining if the episode has ended.
+Internally, on each `.reset()` of the env, the dataset samples a random task (inside its own `.reset()` method) and makes it active in the env. The `Task` object is responsible for calculating the reward, providing the text part of the observation, and determining if the episode has ended.
 
-The structure of the IGLU dataset is following. The dataset consists of structures that represent overall collaboration goals. For each structure, we have several collaboration sessions that pair architects with builders to build each particular structure. Each session consists of a sequence of "turns". Each turn represents an *atomic* instruction and corresponding changes of the blocks in the world. The structure of the `Task` object is following:
+The structure of the IGLU dataset is following. The dataset consists of structures that represent overall collaboration goals. For each structure, we have several collaboration sessions that pair architects with builders to build each particular structure. Each session consists of a sequence of "turns". Each turn represents an *atomic* instruction and corresponding changes of the blocks in the world. The structure of a `Task` object is following:
 
   * `target_grid` - target blocks configuration that needs to be built
   * `starting_grid` - optional, blocks for the environment to begin the episode with.
@@ -134,16 +162,51 @@ The structure of the IGLU dataset is following. The dataset consists of structur
 
 Sometimes, the instructions can be ambiguous and the builder asks a clarifying question which the architect answers. In the latter case, `last_instruction` will contain three utterances: an instruction, a clarifying question, and an answer to that question. Otherwise, `last_instruction` is just one utterance of the architect.
 
+To represent collaboration sessions, the `Subtasks` class is used. This class represents a sequence of dialog utterances and their corresponding goals (each of which is a partially completed structure). On `.reset()` call, it picks a random turn and returns a `Task` object, where starting and target grids are consecutive partial structures and the dialog contains all utterances up until the one corresponding to the target grid.
+
 In the example above, the dataset object is structured as follows:
 
 ```
 # .tasks is a dict mapping from structure to a list of sessions of interaction
 dataset.tasks 
-
-dataset.tasks['']
+# each value contains a list corresponding to collaboration sessions.
+dataset.tasks['c73']
+# Each element of this list is an instance of `Subtasks` class
+dataset.tasks['c73'][0]
 ```
 
-The dataset is downloaded and parsed automatically. Below you will find the structure of the dataset:
+The `.reset()` method of `IGLUDataset` does effectively the following:
+
+```
+def reset(dataset):
+  task_id = random.choice(dataset.tasks.keys())
+  session = random.choice(dataset.tasks[task_id])
+  subtask = session.reset() # Task object is returned
+  return subtask
+```
+
+This behavior can be customized simply by overriding the reset method in a subclass:
+
+```
+import gym
+from gridworld.data import IGLUDataset
+
+class MyDataset(IGLUDataset):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.my_task_id = 'c73'
+    self.my_session = 0
+  
+  def reset(self):
+    return self.tasks[self.my_task_id][self.my_session].reset()
+
+env = gym.make('IGLUGridworld-v0')
+my_dataset = MyDataset(dataset_version='v0.1.0-rc1')
+env.set_task_generator(my_dataset)
+# do training/sampling
+```
+
+On the first creation, the dataset is downloaded and parsed automatically. Below you will find the structure of the dataset:
 
 ```
 dialogs.csv
