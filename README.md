@@ -136,6 +136,8 @@ It is also possible to make a target grid a part of the observation space. To do
 
 ## Working with the IGLU dataset 
 
+<video src='./assets/c118_1_step_0.mp4' width=512></video>
+
 By default, the environment requires a task object to run.
 IGLU dataset provides a convenient loader for RL tasks. Here is an example of how to use it:
 
