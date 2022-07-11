@@ -186,7 +186,7 @@ class IGLUDataset(Tasks):
             # Read the utterances and block end positions for each step.
             for i, row in gr.sort_values('StepId').reset_index(drop=True).iterrows():
                 if row.StepId % 2 == 1:
-                    # Architext step
+                    # Architect step
                     if isinstance(row.instruction, str):
                         utt_seq.append([])
                         utt_seq[-1].append(f'<Architect> {self.process(row.instruction)}')
@@ -246,11 +246,16 @@ class IGLUDataset(Tasks):
 
 class SingleTurnIGLUDataset(IGLUDataset):
     SINGLE_TURN_INSTRUCTION_FILENAME = 'single_turn_instructions.csv'
+    MULTI_TURN_INSTRUCTION_FILENAME = 'multi_turn_dialogs.csv'
     URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip'
 
     def get_instructions(self, data_path):
         return pd.read_csv(os.path.join(
             data_path, self.SINGLE_TURN_INSTRUCTION_FILENAME))
+
+    def get_multiturn_dialogs(self, data_path):
+        return pd.read_csv(os.path.join(
+            data_path, self.MULTI_TURN_INSTRUCTION_FILENAME))
 
     @classmethod
     def get_data_path(cls):
@@ -288,17 +293,56 @@ class SingleTurnIGLUDataset(IGLUDataset):
             with ZipFile(path) as zfile:
                 zfile.extractall(data_path)
 
-    def create_task(self, instruction, initial_grid, target_grid):
+    def create_task(self, previous_chat, initial_grid, target_grid,
+                    last_instruction):
         task = Task(
-            chat='',
+            chat=previous_chat,
             target_grid=Tasks.to_dense(target_grid),
             starting_grid=Tasks.to_sparse(initial_grid),
             full_grid=Tasks.to_dense(target_grid),
-            last_instruction=instruction
+            last_instruction=last_instruction
         )
         # To properly init max_int and prev_grid_size fields
         task.reset()
         return task
+
+    def get_previous_dialogs(self, single_turn_row, multiturn_dialogs):
+        # Filter multiturn rows with this game id and previous to step
+        utterances = []
+        mturn_data_path = single_turn_row.InitializedWorldPath.split('/')[-2:]
+        if len(mturn_data_path) != 2 or '-' not in mturn_data_path[1]:
+            print(f"Error with initial data path {mturn_data_path}."
+                  "Could not parse data path get previous dialogs.")
+            return utterances
+        mturn_game_id = mturn_data_path[0]
+        try:
+            mturn_last_step = int(mturn_data_path[1].replace("step-", ""))
+        except Exception as e:
+            print(f"Error with initial data path {mturn_data_path}."
+                  "Could not parse step id to get previous dialogs.")
+            return utterances
+        dialog_rows = multiturn_dialogs[
+            (multiturn_dialogs.PartitionKey == mturn_game_id) &
+            (multiturn_dialogs.StepId < mturn_last_step) &
+            (multiturn_dialogs.IsHITQualified == True)]
+
+        for _, row in dialog_rows.sort_values('StepId')\
+                .reset_index(drop=True).iterrows():
+            if row.StepId % 2 == 1:
+                # Architect step
+                if isinstance(row.instruction, str):
+                    utterance = row.instruction
+                    utterances.append(
+                        f'<Architect> {self.process(utterance)}')
+                elif isinstance(row.Answer4ClarifyingQuestion, str):
+                    utterance = row.Answer4ClarifyingQuestion
+                    utterances.append(
+                        f'<Architect> {self.process(utterance)}')
+            elif isinstance(row.ClarifyingQuestion, str):
+                utterances.append(
+                    f'<Builder> {self.process(row.ClarifyingQuestion)}')
+
+        return utterances
 
     def parse_tasks(self, dialogs, path):
         """Fills attribute `self.tasks` with instances of Task.
@@ -327,10 +371,11 @@ class SingleTurnIGLUDataset(IGLUDataset):
             each step.
 
         """
-        # TODO apply these transformations before creating final .zip file
         dialogs = dialogs[
             (dialogs.IsHITQualified == True) &
             (dialogs.InitializedWorldPath.notna())]
+
+        multiturn_dialogs = self.get_multiturn_dialogs(path)
         for _, row in dialogs.iterrows():
             assert row.InitializedWorldStructureId is not None
             # Read initial structure
@@ -361,9 +406,15 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 print(f'No target blocks for game {row.PartitionKey}')
                 continue
 
+            last_instruction = '<Architect> ' + self.process(
+                row.InputInstruction)
+            # Read utterances
+            utterances = self.get_previous_dialogs(row, multiturn_dialogs)
+            utterances = '\n'.join(utterances)
             # Construct task
             task = self.create_task(
-                row.InputInstruction, initial_world_blocks, target_world_blocks)
+                utterances, initial_world_blocks, target_world_blocks,
+                last_instruction=last_instruction)
 
             self.tasks[row.InitializedWorldStructureId].append(task)
 

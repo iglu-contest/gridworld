@@ -66,6 +66,10 @@ class IGLUDatasetTest(unittest.TestCase):
         with open(filepath, 'w') as step_file:
             json.dump(final_grid_state, step_file)
 
+    def setUp(self) -> None:
+        os.makedirs(IGLUDatasetMock.get_data_path(), exist_ok=True)
+        return super().setUp()
+
     def tearDown(self) -> None:
         try:
             shutil.rmtree(self.BUILDER_DATA_DIRPATH, ignore_errors=True)
@@ -193,13 +197,25 @@ class IGLUDatasetTest(unittest.TestCase):
 
 
 class SingleTurnIGLUDatasetMock(IGLUDatasetMock, SingleTurnIGLUDataset):
-    pass
+    MULTI_TURN_DIRNAME = 'builder-vw'
 
 
 class SingleTurnIGLUDatasetTest(unittest.TestCase):
     DIALOGS_FILEPATH = os.path.join(
         SingleTurnIGLUDatasetMock.get_data_path(),
         SingleTurnIGLUDatasetMock.SINGLE_TURN_INSTRUCTION_FILENAME)
+
+    MULTITURN_DIALOGS_FILEPATH = os.path.join(
+        SingleTurnIGLUDatasetMock.get_data_path(),
+        SingleTurnIGLUDatasetMock.MULTI_TURN_INSTRUCTION_FILENAME)
+
+    MULTITURN_USED_COLUMNS = [
+        'PartitionKey', 'StepId', 'instruction',
+        'Answer4ClarifyingQuestion', 'ClarifyingQuestion']
+
+    def setUp(self) -> None:
+        os.makedirs(SingleTurnIGLUDatasetMock.get_data_path(), exist_ok=True)
+        return super().setUp()
 
     def tearDown(self) -> None:
         try:
@@ -211,10 +227,26 @@ class SingleTurnIGLUDatasetTest(unittest.TestCase):
             pass
         return super().tearDown()
 
-    def test_normal_session(self):
+    @staticmethod
+    def create_world_file(world_filename, block_list):
         base_data_dir = SingleTurnIGLUDatasetMock.get_data_path()
+        os.makedirs(os.path.join(
+            base_data_dir, os.path.dirname(world_filename)),
+            exist_ok=True)
+        world_filepath = os.path.join(
+            base_data_dir, world_filename)
+        blocks = {
+            "worldEndingState": {
+                "blocks": block_list,
+            }
+        }
+        with open(world_filepath, 'w') as world_file:
+            json.dump(blocks, world_file)
+
+    def test_normal_session(self):
+        # Create single turn csv file
         structure_id = 'c1'
-        initial_world_filename = SingleTurnIGLUDataset.MULTI_TURN_DIRNAME + \
+        initial_world_filename = SingleTurnIGLUDatasetMock.MULTI_TURN_DIRNAME + \
             f'/builder-data/23-{structure_id}/step-2'
         target_world_dir = 'mturk-single-turn/builder-data/actionHit/game-1/'
         game_id = 'game-1'
@@ -230,36 +262,20 @@ class SingleTurnIGLUDatasetTest(unittest.TestCase):
         }
         dialogs = pandas.DataFrame(data=[row])
         dialogs.to_csv(self.DIALOGS_FILEPATH, index=False)
+        # Create empty multiturn turn csv file
+        pandas.DataFrame(columns=self.MULTITURN_USED_COLUMNS).to_csv(
+            self.MULTITURN_DIALOGS_FILEPATH, index=False
+        )
 
         # Create initial world file
-        os.makedirs(os.path.join(
-            base_data_dir, os.path.dirname(initial_world_filename)),
-            exist_ok=True)
-        initial_world_filepath = os.path.join(
-            base_data_dir, initial_world_filename)
         initial_block_list = [[1, 63, 2, 47], [2, 63, 2, 47]]
-        initial_blocks = {
-            "worldEndingState": {
-                "blocks": initial_block_list,
-            }
-        }
-        with open(initial_world_filepath, 'w') as initial_world_file:
-            json.dump(initial_blocks, initial_world_file)
+        self.create_world_file(initial_world_filename, initial_block_list)
 
         # Create target world file
-        os.makedirs(os.path.join(base_data_dir, target_world_dir),
-                    exist_ok=True)
-        target_world_filepath = os.path.join(
-            base_data_dir, target_world_dir, f'{game_id}-step-action'
-        )
         block_list = [[1, 63, 2, 47], [2, 63, 2, 47], [3, 63, 2, 47]]
-        target_blocks = {
-            "worldEndingState": {
-                "blocks": block_list,
-            }
-        }
-        with open(target_world_filepath, 'w') as target_world_file:
-            json.dump(target_blocks, target_world_file)
+        self.create_world_file(
+            os.path.join(target_world_dir, f'{game_id}-step-action'),
+            block_list)
 
         iglu_dataset = SingleTurnIGLUDatasetMock()
         self.assertEqual(1, len(iglu_dataset.tasks),
@@ -271,7 +287,7 @@ class SingleTurnIGLUDatasetTest(unittest.TestCase):
 
         # Test utterances
         self.assertEqual('', task.chat)
-        self.assertEqual(instruction, task.last_instruction)
+        self.assertIn(instruction, task.last_instruction)
 
         # Test initial blocks
         self.assertEqual(len(initial_block_list),
@@ -291,6 +307,94 @@ class SingleTurnIGLUDatasetTest(unittest.TestCase):
                 y+1, x + task.target_grid.shape[1] // 2,
                 z + task.target_grid.shape[2] // 2]
             self.assertEqual(block_id, grid_block)
+
+    def test_normal_session_previous_dialogue(self):
+        # Create single turn csv file
+        attempt_id = 23
+        structure_id = 'c1'
+        initial_step = 6
+        multiturn_game_id = f'{attempt_id}-{structure_id}'
+        initial_world_filename = SingleTurnIGLUDatasetMock.MULTI_TURN_DIRNAME + \
+            f'/builder-data/{multiturn_game_id}/step-{initial_step}'
+        game_id = 'game-1'
+        target_world_dir = 'mturk-single-turn/builder-data/actionHit/{game_id}/'
+        instruction = 'Instruction 3'
+        # Create dialogs file
+        row = {
+            'PartitionKey': game_id,
+            'InitializedWorldPath': initial_world_filename,
+            'IsHITQualified': True,
+            'InitializedWorldStructureId': structure_id,
+            'ActionDataPath': target_world_dir,
+            'InitializedWorldGameId': None, 'InputInstruction': instruction
+        }
+        dialogs = pandas.DataFrame(data=[row])
+        dialogs.to_csv(self.DIALOGS_FILEPATH, index=False)
+        # Create multiturn turn csv file
+        instructions = [
+            {
+                'PartitionRow': multiturn_game_id, 'StepId': 4,
+                'instruction': None, 'Answer4ClarifyingQuestion': None,
+                'ClarifyingQuestion': None
+            },
+            {
+                'PartitionRow': multiturn_game_id, 'StepId': 5,
+                'instruction': 'Architect instruction 2',
+                'Answer4ClarifyingQuestion': None, 'ClarifyingQuestion': None
+            },
+            {
+                'PartitionRow': multiturn_game_id, 'StepId': 3,
+                'instruction': None,
+                'Answer4ClarifyingQuestion': 'This is the answer',
+                'ClarifyingQuestion': None
+            },
+            {
+                'PartitionRow': multiturn_game_id, 'StepId': 1,
+                'instruction': None,
+                'Answer4ClarifyingQuestion': 'Initial instruction',
+                'ClarifyingQuestion': None,
+            },
+            {
+                'PartitionRow': multiturn_game_id, 'StepId': 2,
+                'instruction': None,
+                'Answer4ClarifyingQuestion': None,
+                'ClarifyingQuestion': 'This is a clarifying question'
+            }
+        ]
+        pandas.DataFrame(data=instructions).to_csv(
+            self.MULTITURN_DIALOGS_FILEPATH, index=False
+        )
+
+        # Create initial world file
+        initial_block_list = [[1, 63, 2, 47], [2, 63, 2, 47]]
+        self.create_world_file(initial_world_filename, initial_block_list)
+
+        # Create target world file
+        block_list = [[1, 63, 2, 47], [2, 63, 2, 47], [3, 63, 2, 47]]
+        self.create_world_file(
+            os.path.join(target_world_dir, f'{game_id}-step-action'),
+            block_list)
+
+        iglu_dataset = SingleTurnIGLUDatasetMock()
+        self.assertEqual(1, len(iglu_dataset.tasks),
+                         msg="There is more than one structure in dataset")
+        self.assertIn(structure_id, iglu_dataset.tasks)
+        self.assertEqual(1, len(iglu_dataset.tasks[structure_id]))
+
+        task = iglu_dataset.tasks[structure_id][0]
+
+        # Test utterances
+        expected_dialog = [
+            'Initial instruction',
+            'This is a clarifying question',
+            'This is the answer',
+            'Architect instruction 2'
+        ]
+        obtained_dialog = task.chat.split('\n')
+        self.assertEqual(len(expected_dialog), len(obtained_dialog))
+        for expected_chat, chat in zip(expected_dialog, obtained_dialog):
+            self.assertIn(expected_chat, chat)
+        self.assertIn(instruction, task.last_instruction)
 
     # TODO test for missing files, empty block changes and not approved hits.
 
