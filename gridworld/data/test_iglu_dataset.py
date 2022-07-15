@@ -210,7 +210,7 @@ class SingleTurnIGLUDatasetTest(unittest.TestCase):
         SingleTurnIGLUDatasetMock.MULTI_TURN_INSTRUCTION_FILENAME)
 
     MULTITURN_USED_COLUMNS = [
-        'PartitionKey', 'StepId', 'instruction',
+        'PartitionKey', 'StepId', 'instruction', 'IsHITQualified',
         'Answer4ClarifyingQuestion', 'ClarifyingQuestion']
 
     def setUp(self) -> None:
@@ -333,29 +333,34 @@ class SingleTurnIGLUDatasetTest(unittest.TestCase):
         # Create multiturn turn csv file
         instructions = [
             {
-                'PartitionRow': multiturn_game_id, 'StepId': 4,
+                'PartitionKey': multiturn_game_id, 'StepId': 4,
+                'IsHITQualified': True,
                 'instruction': None, 'Answer4ClarifyingQuestion': None,
                 'ClarifyingQuestion': None
             },
             {
-                'PartitionRow': multiturn_game_id, 'StepId': 5,
+                'PartitionKey': multiturn_game_id, 'StepId': 5,
+                'IsHITQualified': True,
                 'instruction': 'Architect instruction 2',
                 'Answer4ClarifyingQuestion': None, 'ClarifyingQuestion': None
             },
             {
-                'PartitionRow': multiturn_game_id, 'StepId': 3,
+                'PartitionKey': multiturn_game_id, 'StepId': 3,
+                'IsHITQualified': True,
                 'instruction': None,
                 'Answer4ClarifyingQuestion': 'This is the answer',
                 'ClarifyingQuestion': None
             },
             {
-                'PartitionRow': multiturn_game_id, 'StepId': 1,
+                'PartitionKey': multiturn_game_id, 'StepId': 1,
+                'IsHITQualified': True,
                 'instruction': None,
                 'Answer4ClarifyingQuestion': 'Initial instruction',
                 'ClarifyingQuestion': None,
             },
             {
-                'PartitionRow': multiturn_game_id, 'StepId': 2,
+                'PartitionKey': multiturn_game_id, 'StepId': 2,
+                'IsHITQualified': True,
                 'instruction': None,
                 'Answer4ClarifyingQuestion': None,
                 'ClarifyingQuestion': 'This is a clarifying question'
