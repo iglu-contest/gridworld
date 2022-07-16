@@ -12,7 +12,7 @@ The main documentation is available (TODO) here.
 
 Install env:
 
-```
+```sh
 pip install git+https://github.com/iglu-contest/gridworld.git@master
 ```
 
@@ -20,14 +20,14 @@ pip install git+https://github.com/iglu-contest/gridworld.git@master
 
 Clone the repo and build local conda env:
 
-```
+```sh
 git clone https://github.com/iglu-contest/gridworld.git
 cd gridworld && conda env create -f env.yml
 ```
 
 #### Docker:
 
-```
+```sh
 docker build -t gridworld -f ./docker/Dockerfile .
 ```
 
@@ -35,13 +35,13 @@ docker build -t gridworld -f ./docker/Dockerfile .
 
 Note that by default IGLU env runs in headless mode. To run headed do 
 
-```
+```sh
 export IGLU_HEADLESS=0
 ```
 
 Now, run the environment loop:
 
-```
+```python
 import gym
 import gridworld
 from gridworld.tasks import DUMMY_TASK
@@ -66,7 +66,7 @@ Two action spaces are available in Gridworld:
 
 **Walking actions** allow the agent to move with gravity enabled, jump, place, break, and select blocks from inventory. 
 
-```
+```python
 env = gym.make('IGLUGridworld-v0', action_space='walking')
 print(env.action_space) # Discrete(18)
 ```
@@ -91,13 +91,13 @@ For each movement action, the agent steps for about 0.25 of one block. Camera mo
 
 **Flying actions** allow the agent to fly freely within the building zone. Placement actions are the same and movement is specified by a continuous vector.
 
-```
+```python
 env = gym.make('IGLUGridworld-v0', action_space='flying')
 ```
 
 Action space format:
 
-```
+```python
 Dict(
   movement: Box(low=-1, high=1, shape=(3,)),
   camera: Box(low=-5, high=5, shape=(2,)),
@@ -110,7 +110,7 @@ Dict(
 
 Observation space format:
 
-```
+```python
 Dict(
   inventory: Box(low=0, high=20, shape=(6,)),
   compass: Box(low=-180, high=180, shape=(1,)),
@@ -127,7 +127,7 @@ Note that **this space will be used during the evaluation.**
 However, it is possible to access other fields of the environment, for example, during training.
 The `vector_state=True` passed as keyword argument in `gym.make` will return, in addition to previous fields,
 
-```
+```python
 agentPos: Box(low=[-8, -2, -8, -90, 0], high=[8, 12, 8, 90, 360], shape=(5,)),
 grid: Box(low=-1, high=7, shape=(9, 11, 11))
 ```
@@ -141,7 +141,7 @@ It is also possible to make a target grid a part of the observation space. To do
 By default, the environment requires a task object to run.
 IGLU dataset provides a convenient loader for RL tasks. Here is an example of how to use it:
 
-```
+```python
 import gym
 from gridworld.data import IGLUDataset
 
@@ -168,7 +168,7 @@ To represent collaboration sessions, the `Subtasks` class is used. This class re
 
 In the example above, the dataset object is structured as follows:
 
-```
+```python
 # .tasks is a dict mapping from structure to a list of sessions of interaction
 dataset.tasks 
 # each value contains a list corresponding to collaboration sessions.
@@ -179,7 +179,7 @@ dataset.tasks['c73'][0]
 
 The `.reset()` method of `IGLUDataset` does effectively the following:
 
-```
+```python
 def reset(dataset):
   task_id = random.choice(dataset.tasks.keys())
   session = random.choice(dataset.tasks[task_id])
@@ -189,7 +189,7 @@ def reset(dataset):
 
 This behavior can be customized simply by overriding the reset method in a subclass:
 
-```
+```python
 import gym
 from gridworld.data import IGLUDataset
 
