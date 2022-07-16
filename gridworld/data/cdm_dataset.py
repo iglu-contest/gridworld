@@ -41,7 +41,9 @@ class CDMDataset:
     Italy. Association for Computational Linguistics.
     """
     ALL = {}
-    URL = "https://iglumturkstorage.blob.core.windows.net/public-data/cdm_dataset.zip"
+    DATASET_URL = {
+        "v0.1.0-rc1": "https://iglumturkstorage.blob.core.windows.net/public-data/cdm_dataset.zip"
+    } # Dictionary holding dataset version to dataset URI mapping
     block_map = {
         'air': 0,
         'cwc_minecraft_blue_rn': 1,
@@ -51,12 +53,34 @@ class CDMDataset:
         'cwc_minecraft_purple_rn': 5,
         'cwc_minecraft_red_rn': 6,
     }
-    def __init__(self, task_kwargs=None):
+    def __init__(self, dataset_version="v0.1.0-rc1", task_kwargs=None, force_download=False):
+        """
+        Dataset from paper Collaborative dialogue in Minecraft [1]. 
+
+        Contains 156 structures of blocks, ~550 game sessions (several game sessions per
+        structure), 15k utterances. 
+
+        Note that this dataset cannot split the collaboration into instructions since 
+        the invariant (of instruction/grid sequence) align does not hold for this dataset.
+
+
+        [1] Anjali Narayan-Chen, Prashant Jayannavar, and Julia Hockenmaier. 2019. 
+        Collaborative Dialogue in Minecraft. In Proceedings of the 57th Annual Meeting 
+        of the Association for Computational Linguistics, pages 5405-5415, Florence, 
+        Italy. Association for Computational Linguistics.
+
+        Args:
+            dataset_version: Which dataset version to use. 
+            task_kwargs: Task-class specific kwargs. For reference see gridworld.task.Task class
+            force_download: Whether to force dataset downloading
+        """
+        self.dataset_version = dataset_version
         self.task_index = None
+        self.force_download = force_download
         if task_kwargs is None:
             task_kwargs = {}
         self._load_data(
-            force_download=os.environ.get('IGLU_FORCE_DOWNLOAD', '0') == '1',
+            force_download=force_download,
         )
         self.task_kwargs = task_kwargs
         self.tasks = defaultdict(list)
@@ -106,7 +130,7 @@ class CDMDataset:
                     shutil.rmtree(os.path.join(DATA_PREFIX, dir_), ignore_errors=True)
         if not os.path.exists(path) or force_download:
             download(
-                url=CDMDataset.URL,
+                url=CDMDataset.DATASET_URL[self.dataset_version],
                 destination=path,
                 data_prefix=DATA_PREFIX
             )

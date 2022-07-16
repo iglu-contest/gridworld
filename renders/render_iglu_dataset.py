@@ -1,4 +1,6 @@
 import sys
+
+from gridworld.examples.dataset_iterator import DATASET_VERSION
 sys.path.insert(0, '../')
 from gridworld import GridWorld
 from gridworld.data.iglu_dataset import IGLUDataset
@@ -40,7 +42,9 @@ def put_multiline_text(lines, height, width, text_frac=0.6):
 
 env = gym.make('IGLUGridworld-v0', render_size=render_size)
 done = False
-tasks = IGLUDataset()
+
+DATASET_VERSION = "v0.1.0-rc1"
+tasks = IGLUDataset(dataset_version=DATASET_VERSION)
 # env.set_task_generator(None)
 env.set_task(DUMMY_TASK)
 obs = env.reset()
