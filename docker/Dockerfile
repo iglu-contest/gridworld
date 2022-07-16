@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.2.1-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:11.6.1-cudnn8-runtime-ubuntu20.04
 
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -10,7 +10,7 @@ RUN dpkg --add-architecture i386 && \
     libfreetype6:i386
     # rm -rf /var/lib/apt/lists/* # buildkit
 ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=graphics,compat32,utility
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \     
     echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf # buildkit
 ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib/i386-linux-gnu:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:$LD_LIBRARY_PATH"
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libegl1 libegl1:i386 \
     libgles2 libgles2:i386 
     # rm -rf /var/lib/apt/lists/* # buildkit
-ADD 10_nvidia.json /usr/share/glvnd/egl_vendor.d/
+ADD ./docker/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libglvnd-dev libglvnd-dev:i386 \
@@ -40,7 +40,9 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     libfreetype6 \
-    curl
+    curl \
+    git \
+    vim
 
 ENV CONDALINK="https://repo.anaconda.com/miniconda/Miniconda3-py39_4.11.0-Linux-x86_64.sh"
 RUN curl -so "$ROOT/miniconda.sh" $CONDALINK \
@@ -69,9 +71,10 @@ RUN pip3 install --upgrade pip && \
     pyglet==1.5.21 \
     numba==0.55.2 \
     scipy==1.7.3 \
-    numpy==1.21.5 \
+    numpy>=1.22 \
     pandas==1.3.5 \
-    filelock==3.7.0
+    filelock==3.7.0 \
+    requests==2.27.1
 ENV PYOPENGL_PLATFORM=egl
 ENV MUJOCO_GL=egl
 ADD . /gridworld
