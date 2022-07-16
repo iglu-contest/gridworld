@@ -4,7 +4,7 @@ Fast and scalable reinforcement learning environment. The env represents an embo
 
 IGLU is a research project aimed at bridging the gap between reinforcement learning and natural language understanding in Minecraft as a collaborative environment. It provides the RL environment where the goal of an agent is to build structures within a dedicated zone. The structures are described by natural language in the game’s chat.
 
-The main documentation is available (TODO) here.
+![](https://user-images.githubusercontent.com/660004/179063375-3df54656-6a72-4c73-9020-8a0f76620c28.mp4)
 
 ## Installation
 
