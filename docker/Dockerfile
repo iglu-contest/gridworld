@@ -73,7 +73,8 @@ RUN pip3 install --upgrade pip && \
     scipy==1.7.3 \
     numpy==1.21.5 \
     pandas==1.3.5 \
-    filelock==3.7.0
+    filelock==3.7.0 \
+    requests==2.27.1
 ENV PYOPENGL_PLATFORM=egl
 ENV MUJOCO_GL=egl
 ADD . /gridworld

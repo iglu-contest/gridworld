@@ -1,6 +1,6 @@
 gym==0.21.0
 PyOpenGL==3.1.5
-tqdm
+tqdm==4.62.3
 PILLOW==9.0.1
 opencv-python==4.5.5.64
 pyglet==1.5.21
@@ -9,3 +9,4 @@ numba==0.55.2
 numpy==1.21.5
 scipy==1.7.3
 filelock==3.7.0
+requests==2.27.1
