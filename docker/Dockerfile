@@ -71,7 +71,7 @@ RUN pip3 install --upgrade pip && \
     pyglet==1.5.21 \
     numba==0.55.2 \
     scipy==1.7.3 \
-    numpy>=1.22 \
+    numpy==1.21.5 \
     pandas==1.3.5 \
     filelock==3.7.0 \
     requests==2.27.1

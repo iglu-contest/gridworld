@@ -4,7 +4,7 @@ Fast and scalable reinforcement learning environment. The env represents an embo
 
 IGLU is a research project aimed at bridging the gap between reinforcement learning and natural language understanding in Minecraft as a collaborative environment. It provides the RL environment where the goal of an agent is to build structures within a dedicated zone. The structures are described by natural language in the game’s chat.
 
-The main documentation is available (TODO) here.
+![](https://user-images.githubusercontent.com/660004/179063375-3df54656-6a72-4c73-9020-8a0f76620c28.mp4)
 
 ## Installation
 
@@ -12,7 +12,7 @@ The main documentation is available (TODO) here.
 
 Install env:
 
-```
+```sh
 pip install git+https://github.com/iglu-contest/gridworld.git@master
 ```
 
@@ -20,14 +20,14 @@ pip install git+https://github.com/iglu-contest/gridworld.git@master
 
 Clone the repo and build local conda env:
 
-```
+```sh
 git clone https://github.com/iglu-contest/gridworld.git
 cd gridworld && conda env create -f env.yml
 ```
 
 #### Docker:
 
-```
+```sh
 docker build -t gridworld -f ./docker/Dockerfile .
 ```
 
@@ -35,13 +35,13 @@ docker build -t gridworld -f ./docker/Dockerfile .
 
 Note that by default IGLU env runs in headless mode. To run headed do 
 
-```
+```sh
 export IGLU_HEADLESS=0
 ```
 
 Now, run the environment loop:
 
-```
+```python
 import gym
 import gridworld
 from gridworld.tasks import DUMMY_TASK
@@ -66,7 +66,7 @@ Two action spaces are available in Gridworld:
 
 **Walking actions** allow the agent to move with gravity enabled, jump, place, break, and select blocks from inventory. 
 
-```
+```python
 env = gym.make('IGLUGridworld-v0', action_space='walking')
 print(env.action_space) # Discrete(18)
 ```
@@ -91,13 +91,13 @@ For each movement action, the agent steps for about 0.25 of one block. Camera mo
 
 **Flying actions** allow the agent to fly freely within the building zone. Placement actions are the same and movement is specified by a continuous vector.
 
-```
+```python
 env = gym.make('IGLUGridworld-v0', action_space='flying')
 ```
 
 Action space format:
 
-```
+```python
 Dict(
   movement: Box(low=-1, high=1, shape=(3,)),
   camera: Box(low=-5, high=5, shape=(2,)),
@@ -110,7 +110,7 @@ Dict(
 
 Observation space format:
 
-```
+```python
 Dict(
   inventory: Box(low=0, high=20, shape=(6,)),
   compass: Box(low=-180, high=180, shape=(1,)),
@@ -127,12 +127,59 @@ Note that **this space will be used during the evaluation.**
 However, it is possible to access other fields of the environment, for example, during training.
 The `vector_state=True` passed as keyword argument in `gym.make` will return, in addition to previous fields,
 
-```
+```python
 agentPos: Box(low=[-8, -2, -8, -90, 0], high=[8, 12, 8, 90, 360], shape=(5,)),
 grid: Box(low=-1, high=7, shape=(9, 11, 11))
 ```
 
 It is also possible to make a target grid a part of the observation space. To do that, pass `target_in_obs=True` to `gym.make`. This will add another key to the observation space with the same structure as the `grid` component. The name of a new component is `target_grid`. This part of the space remains fixed within an episode.
+
+### Reward calculation
+
+Each step, the reward is calculated based on the similarity between the so far built grid and the target grid. The reward is determined regardless of global spatial position of currently placed blocks, it only takes into account how much the built blocks are similar to the target structure. To make it possible, at each step we calculate the intersection between the built and the target structures for each spatial translation within the horizontal plane and rotation around the vertical axis. Then we take the maximal intersection value among all translation and rotations. To calculate the reward, we compare the maximal intersection size from the current step with the one from the previous step. We reward the agent with `2` for the increase of the maximal intersection size, with `-2` for the decrease of the maximal intersection size, and with `1`/`-1` for removing/placing a block without a change of the maximal intersection size. A visual example is shown below.
+
+<img src="./assets/intersections.png" width="256">
+
+Specifically, we run the code that is equivalent to the following one:
+
+```python
+def maximal_intersection(grid, target_grid):
+  """
+  Args:
+    grid (np.ndarray[Y, X, Z]): numpy array snapshot of a built structure
+    target_grid (np.ndarray[Y, X, Z]): numpy array snapshot of the target structure
+  """
+  maximum = 0
+  # iterate over orthogonal rotations
+  for i in range(4):
+    # iterate over translations
+    for dx in range(-X, X + 1):
+      for dz in range(-Z, Z + 1):
+        shifted_grid = translate(grid, dx, dz)
+        intersection = np.sum( (shifted_grid == target) & (target != 0) )
+        maximum = max(maximum, intersection)
+    grid = rotate_y_axis(grid)
+  return maximum
+```
+
+In practice, a more optimized version is used. The reward is then calculated based on the temporal difference between maximal intersection of the two consecutive grids. Formally, suppose `grids[t]` is a built structure at timestep `t`. The reward is then calculated as:
+
+```python
+def calc_reward(prev_grid, grid, target_grid, , right_scale=2, wrong_scale=1):
+  prev_max_int = maximal_intersection(prev_grid, target_grid)
+  max_int = maximal_intersection(grid, target_grid)
+  diff = max_int - prev_max_int
+  prev_grid_size = num_blocks(prev_grid)
+  grid_size = num_blocks(grid)
+  if diff == 0:
+    return wrong_scale * np.sign(grid_size - prev_grid_size)
+  else:
+    return right_scale * np.sign(diff)
+```
+
+In other words, if a recently placed block strictly increases or decreases the maximal intersection, the reward is positive or negative and is equal to `+/-right_scale`. Otherwise, its absolute value is equal to `wrong_scale` and the sign is positive if a block was removed or negative if added.
+Values `right_scale` and `wrong_scale` can be passed to `gym.make` as environment kwargs. Finally, the `maximal_intersection` includes heavy computations that slow down the environment. They can be simplified by disabling rotational/translational invariance at the cost of much more sparse reward. To do that, pass `invariant=False` to a corresponding `Task` object (see Dataset section for reference).
+
 
 ## Working with the IGLU dataset 
 
@@ -141,7 +188,7 @@ It is also possible to make a target grid a part of the observation space. To do
 By default, the environment requires a task object to run.
 IGLU dataset provides a convenient loader for RL tasks. Here is an example of how to use it:
 
-```
+```python
 import gym
 from gridworld.data import IGLUDataset
 
@@ -168,7 +215,7 @@ To represent collaboration sessions, the `Subtasks` class is used. This class re
 
 In the example above, the dataset object is structured as follows:
 
-```
+```python
 # .tasks is a dict mapping from structure to a list of sessions of interaction
 dataset.tasks 
 # each value contains a list corresponding to collaboration sessions.
@@ -179,7 +226,7 @@ dataset.tasks['c73'][0]
 
 The `.reset()` method of `IGLUDataset` does effectively the following:
 
-```
+```python
 def reset(dataset):
   task_id = random.choice(dataset.tasks.keys())
   session = random.choice(dataset.tasks[task_id])
@@ -189,7 +236,7 @@ def reset(dataset):
 
 This behavior can be customized simply by overriding the reset method in a subclass:
 
-```
+```python
 import gym
 from gridworld.data import IGLUDataset
 
