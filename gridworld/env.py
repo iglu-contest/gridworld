@@ -1,8 +1,5 @@
-import pyglet
 import warnings
 import os
-if os.environ.get('IGLU_HEADLESS', '1') == '1':
-    pyglet.options["headless"] = True
 from gridworld.core.world import Agent, World
 from gridworld.tasks.task import Task, Tasks
 
@@ -103,6 +100,7 @@ class GridWorld(Env):
 
     def enable_renderer(self):
         if self.renderer is None:
+            from gridworld.render import Renderer, setup
             self.reset()
             self.world.deinit()
             from gridworld.render import Renderer, setup

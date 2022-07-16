@@ -1,3 +1,7 @@
+import os
+if os.environ.get('IGLU_HEADLESS', '1') == '1':
+    import pyglet
+    pyglet.options["headless"] = True
 from pyglet.window import Window
 from pyglet.gl import *
 from pyglet.graphics import Batch, TextureGroup
