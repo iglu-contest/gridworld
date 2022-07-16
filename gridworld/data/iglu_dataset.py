@@ -12,8 +12,11 @@ from zipfile import ZipFile
 
 if 'IGLU_DATA_PATH' in os.environ:
     DATA_PREFIX = os.path.join(os.environ['IGLU_DATA_PATH'], 'data', 'iglu')
-else:
+elif 'HOME' in os.environ:
     DATA_PREFIX = os.path.join(os.environ['HOME'], '.iglu', 'data', 'iglu')
+else:
+    DATA_PREFIX = os.path.join(
+        os.path.expanduser('~'), '.iglu', 'data', 'iglu')
 
 VOXELWORLD_GROUND_LEVEL = 63
 
@@ -58,7 +61,7 @@ def fix_log(log_string):
     log_string: str
         log_string should be a string of the full log.
         It should be multiple lines, each corresponded to a timestamp,
-        and should be separated by newline character.    
+        and should be separated by newline character.
     """
 
     lines = []
@@ -107,7 +110,6 @@ class IGLUDataset(Tasks):
         if dataset_version not in IGLUDataset.DATASET_URL.keys():
             raise Exception(
                 "Unknown dataset_version:{} provided.".format(dataset_version))
-
         if task_kwargs is None:
             task_kwargs = {}
         self.task_kwargs = task_kwargs

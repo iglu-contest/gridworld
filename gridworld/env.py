@@ -97,6 +97,7 @@ class GridWorld(Env):
         self.max_int = 0
         self.name = name
         self.do_render = render
+
         if render:
             from gridworld.render import Renderer, setup
             self.renderer = Renderer(self.world, self.agent,
@@ -112,6 +113,7 @@ class GridWorld(Env):
             from gridworld.render import Renderer, setup
             self.reset()
             self.world.deinit()
+            from gridworld.render import Renderer, setup
             self.renderer = Renderer(self.world, self.agent,
                                      width=self.render_size[0], height=self.render_size[0],
                                      caption='Pyglet', resizable=False)

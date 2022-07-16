@@ -17,11 +17,29 @@ BUILD_ZONE_SIZE = 9, 11, 11
 
 if 'IGLU_DATA_PATH' in os.environ:
     DATA_PREFIX = os.path.join(os.environ['IGLU_DATA_PATH'], 'data', 'cdm')
+elif 'HOME' in os.environ:
+    DATA_PREFIX = os.path.join(os.environ['HOME'], '.iglu', 'data', 'iglu')
 else:
-    DATA_PREFIX = os.path.join(os.environ['HOME'], '.iglu', 'data', 'cdm')
+    DATA_PREFIX = os.path.join(
+        os.path.expanduser('~'), '.iglu', 'data', 'iglu')
 
 
 class CDMDataset:
+    """
+    Dataset from paper Collaborative dialogue in Minecraft [1].
+
+    Contains 156 structures of blocks, ~550 game sessions (several game sessions per
+    structure), 15k utterances.
+
+    Note that this dataset cannot split the collaboration into instructions since
+    the invariant (of instruction/grid sequence) align does not hold for this dataset.
+
+
+    [1] Anjali Narayan-Chen, Prashant Jayannavar, and Julia Hockenmaier. 2019.
+    Collaborative Dialogue in Minecraft. In Proceedings of the 57th Annual Meeting
+    of the Association for Computational Linguistics, pages 5405-5415, Florence,
+    Italy. Association for Computational Linguistics.
+    """
     ALL = {}
     DATASET_URL = {
         "v0.1.0-rc1": "https://iglumturkstorage.blob.core.windows.net/public-data/cdm_dataset.zip"
@@ -83,7 +101,7 @@ class CDMDataset:
 
     def __len__(self):
         return len(t for ts in self.tasks.values() for t in ts)
-    
+
     def __iter__(self):
         for ts in self.tasks.values():
             for t in ts:
