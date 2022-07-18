@@ -17,7 +17,7 @@ class Visualizer:
         self.renderer = Renderer(self.world, self.agent,
             width=self.render_size[0], height=self.render_size[1],
             caption='Pyglet', resizable=False)
-        self.renderer.overlay = True
+        self.renderer.overlay = False
         setup()
 
     def set_agent_state(self, position=None, rotation=None):
