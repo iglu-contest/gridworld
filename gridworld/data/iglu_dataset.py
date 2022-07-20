@@ -270,8 +270,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
             The absolute path to data folder.
         """
         if 'IGLU_DATA_PATH' in os.environ:
-            data_path = os.path.join(
-                os.environ['IGLU_DATA_PATH'], 'data', 'single_turn_dataset')
+            data_path = os.environ['IGLU_DATA_PATH']
         elif 'HOME' in os.environ:
             data_path = os.path.join(
                 os.environ['HOME'], '.iglu', 'data', 'single_turn_dataset')
@@ -283,15 +282,18 @@ class SingleTurnIGLUDataset(IGLUDataset):
     def download_dataset(self, data_path, force_download):
         instruction_filepath = os.path.join(
             data_path, self.SINGLE_TURN_INSTRUCTION_FILENAME)
-        path = f'{data_path}/single_turn_iglu_dataset.zip'
-        if (not os.path.exists(instruction_filepath) or force_download):
-            download(
-                url=SingleTurnIGLUDataset.URL,
-                destination=path,
-                data_prefix=data_path
-            )
-            with ZipFile(path) as zfile:
-                zfile.extractall(data_path)
+        path = f'{data_path}/single_turn_iglu_dataset'
+        if os.path.exists(instruction_filepath) and not force_download:
+            print("Using cached dataset")
+            return
+        print(f"Downloading dataset from {SingleTurnIGLUDataset.URL}")
+        download(
+            url=SingleTurnIGLUDataset.URL,
+            destination=path,
+            data_prefix=data_path
+        )
+        with ZipFile(path) as zfile:
+            zfile.extractall(data_path)
 
     def create_task(self, previous_chat, initial_grid, target_grid,
                     last_instruction):
@@ -371,9 +373,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
             each step.
 
         """
-        dialogs = dialogs[
-            (dialogs.IsHITQualified == True) &
-            (dialogs.InitializedWorldPath.notna())]
+        dialogs = dialogs[dialogs.InitializedWorldPath.notna()]
 
         multiturn_dialogs = self.get_multiturn_dialogs(path)
         for _, row in dialogs.iterrows():
@@ -392,9 +392,10 @@ class SingleTurnIGLUDataset(IGLUDataset):
 
             # Read target structure
             target_world_filepath = os.path.join(
-                path, row.ActionDataPath, f'{row.PartitionKey}-step-action')
+                path, row.TargetWorldPath)
             if not os.path.exists(target_world_filepath):
-                print(f'Target file for game {row.PartitionKey} not found')
+                print(f'Target file for game {row.GameId} not found',
+                      row.TargetWorldPath)
                 continue
             with open(target_world_filepath, 'r') as target_file:
                 target_step = json.load(target_file)
@@ -403,7 +404,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 for block in target_step['worldEndingState']['blocks']
             ]
             if len(target_world_blocks) == 0:
-                print(f'No target blocks for game {row.PartitionKey}')
+                print(f'No target blocks for game {row.GameId}')
                 continue
 
             last_instruction = '<Architect> ' + self.process(
