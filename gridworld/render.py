@@ -95,7 +95,7 @@ class Renderer(Window):
         # glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*4)(0.0,9,0.0,1))
         # glLightfv(GL_LIGHT0, GL_AMBIENT, (GLfloat*4)(1,1,1,1))
         # glLightfv(GL_LIGHT0, GL_DIFFUSE, (GLfloat*4)(1.0,1.0,1.0,1))
-        
+
 
     def on_draw(self):
         """ Called by pyglet to draw the canvas.
@@ -105,13 +105,13 @@ class Renderer(Window):
         self.set_3d()
         glColor3d(1, 1, 1)
         self.batch.draw()
-        
+
         if self.overlay:
             self.draw_focused_block()
             self.set_2d()
             self.draw_label()
             self.draw_reticle()
-    
+
     def render(self):
         self.on_draw()
         width, height = self.get_size()
@@ -134,7 +134,7 @@ class Renderer(Window):
             ('v3f/static', vertex_data),
             ('t2f/static', texture_data),
         )
-    
+
     def remove_block(self, position, **kwargs):
         if position in self._shown:
             self._shown.pop(position).delete()

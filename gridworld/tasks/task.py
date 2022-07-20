@@ -7,6 +7,26 @@ BUILD_ZONE_SIZE = 9, 11, 11
 
 class Task:
     def __init__(self, chat, target_grid, last_instruction=None, starting_grid=None, full_grid=None, invariant=True):
+        """Creates a new Task represented with the past dialog and grid,
+        the new instruction and target grid after completing the instruction.
+
+        Parameters
+        ----------
+        chat : str
+            Contatenation of all past utterances
+        target_grid : numpy.array
+            dense representation of the target
+        last_instruction : string, optional
+            the instruction corresponding to this step in the task,
+            by default None
+        starting_grid : numpy.array, optional
+            sparse representation of the initial world, by default None
+        full_grid : numpy.array, optional
+            dense representation of the general target structure,
+            by default None
+        invariant : bool, optional
+            by default True
+        """
         self.chat = chat
         self.starting_grid = starting_grid
         self.last_instruction = last_instruction
@@ -73,6 +93,12 @@ class Task:
     def __iter__(self):
         yield self
     ###
+
+    def __repr__(self) -> str:
+        instruction = self.last_instruction \
+            if len(self.last_instruction) < 20 \
+            else self.last_instruction[:20] + '...'
+        return f"Task(instruction={instruction})"
 
     def step_intersection(self, grid):
         """
@@ -162,7 +188,7 @@ class Tasks:
 
     def reset(self) -> Task:
         return NotImplemented
-    
+
     def __len__(self) -> int:
         return NotImplemented
 
@@ -171,13 +197,13 @@ class Tasks:
 
     def set_task(self, task_id):
         return NotImplemented
-    
+
     def get_target(self):
         return NotImplemented
 
     def set_task_obj(self, task: Task):
         return NotImplemented
-        
+
 
 class Subtasks(Tasks):
     """ Subtasks object represents a staged task where subtasks represent separate segments
@@ -199,7 +225,7 @@ class Subtasks(Tasks):
 
     def reset(self):
         """
-        Randomly selects a random task within the task sequence. 
+        Randomly selects a random task within the task sequence.
         Each task is sampled with some non-trilial context (prior dialogs and
         starting structure) and one utterance goal instruction
         """
@@ -216,7 +242,7 @@ class Subtasks(Tasks):
         self.task_goal = turn_goal
         self.current = self.create_task(self.task_start, self.task_goal)
         return self.current
-    
+
     def __len__(self) -> int:
         return len(self.structure_seq)
 
@@ -224,9 +250,14 @@ class Subtasks(Tasks):
         for i in range(len(self)):
             yield self.create_task(i - 1, i)
 
+    def __repr__(self) -> str:
+        return (f"Subtasks(total_steps={len(self.structure_seq)}, "
+                f"current_task_start={self.task_start}, "
+                f"current_task_end={self.task_goal})")
+
     def create_task(self, turn_start: int, turn_goal: int):
         """
-        Returns a task with context defined by `turn_start` and goal defined 
+        Returns a task with context defined by `turn_start` and goal defined
         by `turn_goal`
 
         """
@@ -254,7 +285,7 @@ class Subtasks(Tasks):
 
     def step_intersection(self, grid):
         """
-        
+
         """
         right_placement, wrong_placement, done = self.current.step_intersection(grid)
         if done and len(self.structure_seq) > self.task_goal and self.progressive:
