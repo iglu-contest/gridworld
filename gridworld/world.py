@@ -1,4 +1,4 @@
-from pyglet.gl import *
+#from pyglet.gl import *
 from numba import jit
 
 from .utils import WHITE, GREY
