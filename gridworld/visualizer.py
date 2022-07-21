@@ -17,7 +17,7 @@ class Visualizer:
         self.renderer = Renderer(self.world, self.agent,
             width=self.render_size[0], height=self.render_size[1],
             caption='Pyglet', resizable=False)
-        self.renderer.overlay = True
+        self.renderer.overlay = False
         setup()
 
     def set_agent_state(self, position=None, rotation=None):
@@ -40,11 +40,15 @@ class Visualizer:
             add: whether to add or remove blocks
         """
         if add:
-            for bid,x,y,z in blocks:
+            for x,y,z, bid in blocks:
                 self.world.add_block((x, y, z), bid)
         else:
-            for bid,x,y,z in blocks:
+            for x,y,z, bid in blocks:
                 self.world.remove_block((x, y, z))
+    
+    def clear(self):
+        for x,y,z in list(self.world.placed):
+            self.world.remove_block((x,y,z))
 
     def render(self, position=None, rotation=None, blocks=None):
         """

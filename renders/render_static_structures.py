@@ -1,28 +1,28 @@
-from gridworld.env import create_env
+import sys
+sys.path.insert(0, '../')
+from gridworld.visualizer import Visualizer
 from tqdm import tqdm
 from PIL import Image
 import numpy as np
 import os
 import pickle
-env = create_env(visual=True, discretize=True, size_reward=False, select_and_place=True)
-done = False
-obs = env.reset()
-img = env.unwrapped.render()
+
 seq = []
 c = 0
 d = 0.
 os.makedirs('labeling', exist_ok=True)
 q = 0
 SIZE = 512
+vis = Visualizer(render_size=(512, 512))
 with open('goals.pkl', 'rb') as fl:
     stru = pickle.load(fl)
 for task_id, s in tqdm(list(stru.items())):
     idx = 0
     quad = np.zeros((2 * SIZE, 4 * SIZE, 3), dtype=np.uint8)
     q = 0
+    vis.clear()
     for ddy in [0, 1]:
         for ddx, ddz in [(-1, 1), (1, 1), (1, -1), (-1, -1)]:
-            done = False
             mean_pos = np.array([
                 np.mean([ss[j] for ss in s])
                 for j in range(3)
@@ -48,15 +48,13 @@ for task_id, s in tqdm(list(stru.items())):
             pitch = 90 - np.arccos(vec[1]) * 180 / np.pi
             xz = np.sqrt(vec[0] ** 2 + vec[2] ** 2)
             yaw = 90 + np.arctan2(vec[2] / xz, vec[0] / xz) * 180 / np.pi
-            init_pos = init_pos.tolist() + [yaw, pitch]
-            # print(init_pos)
-            env.initialize_world(s, init_pos)
-            obs = env.reset()
-            img = env.unwrapped.render() 
+            vis.set_agent_state(init_pos.tolist(), [yaw, pitch])
+            vis.set_world_state(s)
+            img = vis.render()
             jx = int(ddx / 2 + 0.5) * 2 + int(ddz / 2 + 0.5)
             jy = ddy
-            quad[jy * SIZE: (jy + 1) * SIZE, 
-                 jx * SIZE: (jx + 1) * SIZE] = img[..., :-1]
+            quad[jy * SIZE: (jy + 1) * SIZE,
+                 jx * SIZE: (jx + 1) * SIZE] = img
             q += 1
             Image.fromarray(img).save(f'labeling/{task_id}_{q}.png')
     Image.fromarray(quad).save(f'labeling/{task_id}.png')
