@@ -249,9 +249,16 @@ class SingleTurnIGLUDataset(IGLUDataset):
     MULTI_TURN_INSTRUCTION_FILENAME = 'multi_turn_dialogs.csv'
     URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip'
 
+    def __init__(self, task_kwargs=None, force_download=False, limit=None) -> None:
+        self.limit = limit
+        super().__init__()
+
     def get_instructions(self, data_path):
-        return pd.read_csv(os.path.join(
+        single_turn_df = pd.read_csv(os.path.join(
             data_path, self.SINGLE_TURN_INSTRUCTION_FILENAME))
+        if self.limit is not None:
+            return single_turn_df[:self.limit]
+        return single_turn_df
 
     def get_multiturn_dialogs(self, data_path):
         return pd.read_csv(os.path.join(
@@ -282,7 +289,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
     def download_dataset(self, data_path, force_download):
         instruction_filepath = os.path.join(
             data_path, self.SINGLE_TURN_INSTRUCTION_FILENAME)
-        path = f'{data_path}/single_turn_iglu_dataset'
+        path = os.path.join(data_path, 'single_turn_dataset.zip')
         if os.path.exists(instruction_filepath) and not force_download:
             print("Using cached dataset")
             return
@@ -313,14 +320,14 @@ class SingleTurnIGLUDataset(IGLUDataset):
         utterances = []
         mturn_data_path = single_turn_row.InitializedWorldPath.split('/')[-2:]
         if len(mturn_data_path) != 2 or '-' not in mturn_data_path[1]:
-            print(f"Error with initial data path {mturn_data_path}."
+            print(f"Error with initial data path {single_turn_row.InitializedWorldPath}."
                   "Could not parse data path get previous dialogs.")
             return utterances
         mturn_game_id = mturn_data_path[0]
         try:
             mturn_last_step = int(mturn_data_path[1].replace("step-", ""))
         except Exception as e:
-            print(f"Error with initial data path {mturn_data_path}."
+            print(f"Error with initial data path {single_turn_row.InitializedWorldPath}."
                   "Could not parse step id to get previous dialogs.")
             return utterances
         dialog_rows = multiturn_dialogs[
@@ -376,6 +383,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
         dialogs = dialogs[dialogs.InitializedWorldPath.notna()]
 
         multiturn_dialogs = self.get_multiturn_dialogs(path)
+        empty_target_grids = 0
         for _, row in dialogs.iterrows():
             assert row.InitializedWorldStructureId is not None
             # Read initial structure
@@ -404,7 +412,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 for block in target_step['worldEndingState']['blocks']
             ]
             if len(target_world_blocks) == 0:
-                print(f'No target blocks for game {row.GameId}')
+                empty_target_grids += 1
                 continue
 
             last_instruction = '<Architect> ' + self.process(
@@ -418,6 +426,8 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 last_instruction=last_instruction)
 
             self.tasks[row.InitializedWorldStructureId].append(task)
+        if empty_target_grids > 0:
+            print(f'Warning: {empty_target_grids} empty games skipped')
 
     def __iter__(self):
         for task_id, tasks in self.tasks.items():
