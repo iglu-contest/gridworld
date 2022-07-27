@@ -12,5 +12,5 @@ for task_id, n, m, subtask in dataset:
     # print(f'structure id: {task_id}, session id: {n}, '
     #       f'substructure id: {m}, instruction len: {len(subtask.last_instruction)}')
     counter += 1
-    import ipdb; ipdb.set_trace()
+
 print(counter)
