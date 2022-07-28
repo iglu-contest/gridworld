@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.6.1-cudnn8-runtime-ubuntu20.04
+FROM pytorch/pytorch:1.12.0-cuda11.3-cudnn8-runtime
 
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -43,22 +43,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     vim
-
-ENV CONDALINK="https://repo.anaconda.com/miniconda/Miniconda3-py39_4.11.0-Linux-x86_64.sh"
-RUN curl -so "$ROOT/miniconda.sh" $CONDALINK \
- && chmod +x "$ROOT/miniconda.sh" \
- && "$ROOT/miniconda.sh" -b -p "$ROOT/.conda/" \
- && rm "$ROOT/miniconda.sh"
-ENV PATH="$ROOT/.conda/bin:$PATH"
-
-ADD ./env.yml "$ROOT/env.yml"
-
-RUN conda install -y conda-build \
- && conda env create -f "$ROOT/env.yml" \
- && conda clean -ya && conda init
-ENV CONDA_DEFAULT_ENV=environ
-ENV CONDA_PREFIX="$ROOT/.conda/envs/$CONDA_DEFAULT_ENV"
-ENV PATH=$CONDA_PREFIX/bin:$PATH
 
 # Run the command inside your image filesystem
 RUN pip3 install --upgrade pip && \
