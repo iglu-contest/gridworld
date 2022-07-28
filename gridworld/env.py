@@ -30,7 +30,7 @@ class GridWorld(Env):
             self, render=True, max_steps=250, select_and_place=False,
             discretize=False, right_placement_scale=1., wrong_placement_scale=0.1,
             render_size=(64, 64), target_in_obs=False, action_space='walking', 
-            vector_state=True, name='') -> None:
+            vector_state=True, fake=False, name='') -> None:
         self.agent = Agent(sustain=False)
         self.world = World()
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
@@ -51,6 +51,7 @@ class GridWorld(Env):
         self.discretize = discretize
         self.action_space_type = action_space
         self.starting_grid = None
+        self.fake = fake
         self._overwrite_starting_grid = None
         self.initial_position = (0, 0, 0)
         self.initial_rotation = (0, 0)
@@ -97,8 +98,7 @@ class GridWorld(Env):
         self.max_int = 0
         self.name = name
         self.do_render = render
-
-        if render:
+        if render and not fake:
             from gridworld.render import Renderer, setup
             self.renderer = Renderer(self.world, self.agent,
                                      width=self.render_size[0], height=self.render_size[1],
@@ -109,7 +109,7 @@ class GridWorld(Env):
             self.world._initialize()
 
     def enable_renderer(self):
-        if self.renderer is None:
+        if self.renderer is None and not self.fake:
             from gridworld.render import Renderer, setup
             self.reset()
             self.world.deinit()
@@ -230,8 +230,10 @@ class GridWorld(Env):
             obs['agentPos'] = np.array([0., 0., 0., 0., 0.], dtype=np.float32)
         if self.target_in_obs:
             obs['target_grid'] = self._task.target_grid.copy().astype(np.int32)
-        if self.do_render:
+        if self.do_render and not self.fake:
             obs['pov'] = self.render()[..., :-1]
+        elif self.do_render:
+            obs['pov'] = self.observation_space['pov'].sample()
         return obs
 
     def render(self,):
@@ -269,8 +271,10 @@ class GridWorld(Env):
             reward = right_placement * self.right_placement_scale
         if self.target_in_obs:
             obs['target_grid'] = self._task.target_grid.copy().astype(np.int32)
-        if self.do_render:
+        if self.do_render and not self.fake:
             obs['pov'] = self.render()[..., :-1]
+        elif self.do_render:
+            obs['pov'] = self.observation_space['pov'].sample()
         return obs, reward, done, {}
 
 
@@ -291,12 +295,11 @@ class SizeReward(Wrapper):
     reward += min(self.unwrapped.wrong_placement * 0.02, 0)
     return obs, reward, done, info
 
-
 def create_env(
         render=True, discretize=True, size_reward=True, select_and_place=True,
         right_placement_scale=1, render_size=(64, 64), target_in_obs=False,
         vector_state=False, max_steps=250, action_space='walking',
-        wrong_placement_scale=0.1, name=''
+        wrong_placement_scale=0.1, name='', fake=False
     ):
     env = GridWorld(
         render=render, select_and_place=select_and_place,
@@ -304,7 +307,7 @@ def create_env(
         wrong_placement_scale=wrong_placement_scale, name=name,
         render_size=render_size, target_in_obs=target_in_obs,
         vector_state=vector_state, max_steps=max_steps,
-        action_space=action_space
+        action_space=action_space, fake=fake
     )
     if size_reward:
         env = SizeReward(env)
