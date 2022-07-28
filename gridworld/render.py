@@ -2,6 +2,9 @@ import os
 if os.environ.get('IGLU_HEADLESS', '1') == '1':
     import pyglet
     pyglet.options["headless"] = True
+    devices = os.environ.get('CUDA_VISIBLE_DEVICES')
+    if devices is not None and devices != '':
+        pyglet.options['headless_device'] = int(devices.split(',')[0])
 from pyglet.window import Window
 from pyglet.gl import *
 from pyglet.graphics import Batch, TextureGroup
