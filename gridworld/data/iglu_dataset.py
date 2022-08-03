@@ -15,13 +15,14 @@ VOXELWORLD_GROUND_LEVEL = 63
 block_colour_map = {
     # voxelworld's colour id : iglu colour id
     0: 0,  # air
-    57: 1, # blue
-    50: 6, # yellow
-    59: 2, # green
-    47: 4, # orange
-    56: 5, # purple
+    57: 1,  # blue
+    50: 6,  # yellow
+    59: 2,  # green
+    47: 4,  # orange
+    56: 5,  # purple
     60: 3  # red
 }
+
 
 def fix_xyz(x, y, z):
     XMAX = 11
@@ -45,6 +46,7 @@ def fix_xyz(x, y, z):
     new_z -= COORD_SHIFT[2]
 
     return new_x, new_y, new_z
+
 
 def fix_log(log_string):
     """
@@ -78,17 +80,30 @@ def fix_log(log_string):
 
     return "\n".join(lines)
 
+
+
 class IGLUDataset(Tasks):
-    """
-    Collaborative dataset for the IGLU competition.
+    DATASET_URL = {
+        "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
+    }  # Dictionary holding dataset version to dataset URI mapping
+    DIALOGS_FILENAME = 'dialogs.csv' 
+    
+    def __init__(self, dataset_version="v0.1.0-rc1", task_kwargs=None, force_download=False) -> None:
+        """
+        Collaborative dataset for the IGLU competition.
 
-    Current version of the dataset covers 31 structures in 128 staged game sessions
-    resulting in 608 tasks.
-    """
-    URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
-    DIALOGS_FILENAME = 'dialogs.csv'
+        Current version of the dataset covers 31 structures in 128 staged game sessions 
+        resulting in 608 tasks.
 
-    def __init__(self, task_kwargs=None, force_download=False) -> None:
+        Args:
+            dataset_version: Which dataset version to use. 
+            task_kwargs: Task-class specific kwargs. For reference see gridworld.task.Task class
+            force_download: Whether to force dataset downloading
+        """
+        self.dataset_version = dataset_version
+        if dataset_version not in IGLUDataset.DATASET_URL.keys():
+            raise Exception(
+                "Unknown dataset_version:{} provided.".format(dataset_version))
         if task_kwargs is None:
             task_kwargs = {}
         self.task_kwargs = task_kwargs
@@ -129,7 +144,7 @@ class IGLUDataset(Tasks):
         if (not os.path.exists(os.path.join(data_path, self.DIALOGS_FILENAME))
                 or force_download):
             download(
-                url=IGLUDataset.URL,
+                url=IGLUDataset.DATASET_URL[self.dataset_version],
                 destination=path,
                 data_prefix=data_path
             )
@@ -189,15 +204,18 @@ class IGLUDataset(Tasks):
                     # Architect step
                     if isinstance(row.instruction, str):
                         utt_seq.append([])
-                        utt_seq[-1].append(f'<Architect> {self.process(row.instruction)}')
+                        utt_seq[-1].append(
+                            f'<Architect> {self.process(row.instruction)}')
                     elif isinstance(row.Answer4ClarifyingQuestion, str):
-                        utt_seq[-1].append(f'<Architect> {self.process(row.Answer4ClarifyingQuestion)}')
+                        utt_seq[-1].append(
+                            f'<Architect> {self.process(row.Answer4ClarifyingQuestion)}')
                 else:
                     # Builder step
                     if not row.IsHITQualified:
                         continue
                     if isinstance(row.ClarifyingQuestion, str):
-                        utt_seq[-1].append(f'<Builder> {self.process(row.ClarifyingQuestion)}')
+                        utt_seq[-1].append(
+                            f'<Builder> {self.process(row.ClarifyingQuestion)}')
                         continue
                     blocks.append([])
                     curr_step = f'{path}/builder-data/{sess_id}/step-{row.StepId}'

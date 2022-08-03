@@ -1,8 +1,5 @@
-import pyglet
 import warnings
 import os
-if os.environ.get('IGLU_HEADLESS', '1') == '1':
-    pyglet.options["headless"] = True
 from gridworld.core.world import Agent, World
 from gridworld.tasks.task import Task, Tasks
 
@@ -32,8 +29,8 @@ class GridWorld(Env):
     def __init__(
             self, render=True, max_steps=250, select_and_place=False,
             discretize=False, right_placement_scale=1., wrong_placement_scale=0.1,
-            render_size=(64, 64), target_in_obs=False,
-            vector_state=True, name='') -> None:
+            render_size=(64, 64), target_in_obs=False, action_space='walking', 
+            vector_state=True, fake=False, name='') -> None:
         self.agent = Agent(sustain=False)
         self.world = World()
         self.grid = np.zeros((9, 11, 11), dtype=np.int32)
@@ -52,24 +49,35 @@ class GridWorld(Env):
         self.target_in_obs = target_in_obs
         self.vector_state = vector_state
         self.discretize = discretize
+        self.action_space_type = action_space
         self.starting_grid = None
+        self.fake = fake
         self._overwrite_starting_grid = None
         self.initial_position = (0, 0, 0)
         self.initial_rotation = (0, 0)
-        if discretize:
-            self.action_space = Discrete(18)
-        else:
+        if action_space == 'walking':
+            if discretize:
+                self.action_space = Discrete(18)
+            else:        
+                self.action_space = Dict({
+                    'forward': Discrete(2),
+                    'back': Discrete(2),
+                    'left': Discrete(2),
+                    'right': Discrete(2),
+                    'jump': Discrete(2),
+                    'attack': Discrete(2),
+                    'use': Discrete(2),
+                    'camera': Box(low=-5, high=5, shape=(2,)),
+                    'hotbar': Discrete(7)
+                })
+        elif action_space == 'flying':
             self.action_space = Dict({
-                'forward': Discrete(2),
-                'back': Discrete(2),
-                'left': Discrete(2),
-                'right': Discrete(2),
-                'jump': Discrete(2),
-                'attack': Discrete(2),
-                'use': Discrete(2),
-                'camera': Box(low=-5, high=5, shape=(2,)),
-                'hotbar': Discrete(7)
+                'movement': Box(low=-1, high=1, shape=(3,), dtype=np.float32),
+                'camera': Box(low=-5, high=5, shape=(2,), dtype=np.float32),
+                'inventory': Discrete(7),
+                'placement': Discrete(3),
             })
+            self.agent.flying = True
         self.observation_space = {
             'inventory': Box(low=0, high=20, shape=(6,), dtype=np.float32),
             'compass': Box(low=-180, high=180, shape=(1,), dtype=np.float32),
@@ -90,8 +98,7 @@ class GridWorld(Env):
         self.max_int = 0
         self.name = name
         self.do_render = render
-
-        if render:
+        if render and not fake:
             from gridworld.render import Renderer, setup
             self.renderer = Renderer(self.world, self.agent,
                                      width=self.render_size[0], height=self.render_size[1],
@@ -102,7 +109,8 @@ class GridWorld(Env):
             self.world._initialize()
 
     def enable_renderer(self):
-        if self.renderer is None:
+        if self.renderer is None and not self.fake:
+            from gridworld.render import Renderer, setup
             self.reset()
             self.world.deinit()
             from gridworld.render import Renderer, setup
@@ -222,34 +230,16 @@ class GridWorld(Env):
             obs['agentPos'] = np.array([0., 0., 0., 0., 0.], dtype=np.float32)
         if self.target_in_obs:
             obs['target_grid'] = self._task.target_grid.copy().astype(np.int32)
-        if self.do_render:
+        if self.do_render and not self.fake:
             obs['pov'] = self.render()[..., :-1]
+        elif self.do_render:
+            obs['pov'] = self.observation_space['pov'].sample()
         return obs
 
     def render(self,):
         if not self.do_render:
             raise ValueError('create env with render=True')
         return self.renderer.render()
-
-    def parse_action(self, action):
-        strafe = [0,0]
-        if action['forward']:
-            strafe[0] += -1
-        if action['back']:
-            strafe[0] += 1
-        if action['left']:
-            strafe[1] += -1
-        if action['right']:
-            strafe[1] += 1
-        jump = bool(action['jump'])
-        if action['hotbar'] == 0:
-            inventory = None
-        else:
-            inventory = action['hotbar']
-        camera = action['camera']
-        remove = bool(action['attack'])
-        add = bool(action['use'])
-        return strafe, jump, inventory, camera, remove, add
 
     def step(self, action):
         if self._task is None:
@@ -260,7 +250,10 @@ class GridWorld(Env):
             else:
                 raise ValueError('Task is not initialized! Run .reset() first.')
         self.step_no += 1
-        self.world.step(self.agent, action, select_and_place=self.select_and_place)
+        self.world.step(
+            self.agent, action, select_and_place=self.select_and_place,
+            action_space=self.action_space_type, discretize=self.discretize
+        )
         x, y, z = self.agent.position
         yaw, pitch = self.agent.rotation
         obs = {}
@@ -278,8 +271,10 @@ class GridWorld(Env):
             reward = right_placement * self.right_placement_scale
         if self.target_in_obs:
             obs['target_grid'] = self._task.target_grid.copy().astype(np.int32)
-        if self.do_render:
+        if self.do_render and not self.fake:
             obs['pov'] = self.render()[..., :-1]
+        elif self.do_render:
+            obs['pov'] = self.observation_space['pov'].sample()
         return obs, reward, done, {}
 
 
@@ -300,12 +295,11 @@ class SizeReward(Wrapper):
     reward += min(self.unwrapped.wrong_placement * 0.02, 0)
     return obs, reward, done, info
 
-
 def create_env(
         render=True, discretize=True, size_reward=True, select_and_place=True,
         right_placement_scale=1, render_size=(64, 64), target_in_obs=False,
-        vector_state=False, max_steps=250,
-        wrong_placement_scale=0.1, name=''
+        vector_state=False, max_steps=250, action_space='walking',
+        wrong_placement_scale=0.1, name='', fake=False
     ):
     env = GridWorld(
         render=render, select_and_place=select_and_place,
@@ -313,6 +307,7 @@ def create_env(
         wrong_placement_scale=wrong_placement_scale, name=name,
         render_size=render_size, target_in_obs=target_in_obs,
         vector_state=vector_state, max_steps=max_steps,
+        action_space=action_space, fake=fake
     )
     if size_reward:
         env = SizeReward(env)

@@ -161,3 +161,7 @@ FACES = [
     ( 0, 0, 1),
     ( 0, 0,-1),
 ]
+
+BUILD_ZONE_SIZE_X = 11
+BUILD_ZONE_SIZE_Z = 11
+BUILD_ZONE_SIZE = 9, 11, 11
