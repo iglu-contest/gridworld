@@ -282,3 +282,10 @@ Here, `dialog.csv` contains the utterances of architects and builders solving di
 different sessions. The `builder-data/` directory contains builder behavior recorded by the voxel.js engine. Right now we extract only the resulting grids and use them as targets.
 
 ## Known Issues
+
+### How to fix the `pyglet.gl.ContextException: Could not create GL context` problem?
+
+When running without docker, this heavily depends on the software and hardware of your system. Below you will find a list of known workarounds depending on software/hardware constraints:
+
+  * Linux machine with an integrated Intel GPU:
+    * try running `MESA_LOADER_DRIVER_OVERRIDE=i965 python run_env.py`
