@@ -3,12 +3,18 @@ import json
 import re
 import pandas as pd
 import numpy as np
+import pickle
+import bz2
 from collections import defaultdict
+
+from gridworld import data
 
 from ..tasks.task import Subtasks, Task, Tasks
 from .load import download
 
 from zipfile import ZipFile
+from tqdm import tqdm
+
 
 VOXELWORLD_GROUND_LEVEL = 63
 
@@ -84,11 +90,15 @@ def fix_log(log_string):
 
 class IGLUDataset(Tasks):
     DATASET_URL = {
-        "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip'
+        "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip',
+        "v0.1.0-rc2": (
+            'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip',
+            'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_multi_turn_dataset.tar.bz2'
+        )
     }  # Dictionary holding dataset version to dataset URI mapping
     DIALOGS_FILENAME = 'dialogs.csv' 
     
-    def __init__(self, dataset_version="v0.1.0-rc1", task_kwargs=None, force_download=False) -> None:
+    def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None, force_download=False) -> None:
         """
         Collaborative dataset for the IGLU competition.
 
@@ -101,17 +111,27 @@ class IGLUDataset(Tasks):
             force_download: Whether to force dataset downloading
         """
         self.dataset_version = dataset_version
-        if dataset_version not in IGLUDataset.DATASET_URL.keys():
+        if dataset_version not in self.DATASET_URL.keys():
             raise Exception(
                 "Unknown dataset_version:{} provided.".format(dataset_version))
         if task_kwargs is None:
             task_kwargs = {}
         self.task_kwargs = task_kwargs
         data_path = self.get_data_path()
-        self.download_dataset(data_path, force_download)
-        dialogs = self.get_instructions(data_path)
-        self.tasks = defaultdict(list)
-        self.parse_tasks(dialogs, data_path)
+        assert isinstance(self.DATASET_URL[self.dataset_version], tuple), 'Wrong dataset version'
+        filename = self.DATASET_URL[self.dataset_version][1].split('/')[-1]
+        try:
+            # first, try downloading the lightweight parsed dataset
+            self.download_parsed(data_path=data_path, file_name=filename, force_download=force_download)
+            self.load_tasks_dataset(os.path.join(data_path, filename))
+        except:
+            print('Loading parsed dataset failed. Downloading full dataset.')
+            # if it fails, download it manually and cache it
+            self.download_dataset(data_path, force_download)
+            dialogs = self.get_instructions(data_path)
+            self.tasks = defaultdict(list)
+            self.parse_tasks(dialogs, data_path)
+            self.dump_tasks_dataset(os.path.join(data_path, filename))
 
     def get_instructions(self, data_path):
         return pd.read_csv(os.path.join(data_path, self.DIALOGS_FILENAME))
@@ -140,16 +160,49 @@ class IGLUDataset(Tasks):
         return data_path
 
     def download_dataset(self, data_path, force_download):
-        path = f'{data_path}/iglu_dataset.zip'
+        path = os.path.join(data_path, 'iglu_dataset.zip')
         if (not os.path.exists(os.path.join(data_path, self.DIALOGS_FILENAME))
                 or force_download):
+            url = self.DATASET_URL[self.dataset_version]
+            if not isinstance(url, str):
+                url = url[0]
             download(
-                url=IGLUDataset.DATASET_URL[self.dataset_version],
+                url=url,
                 destination=path,
-                data_prefix=data_path
+                data_prefix=data_path,
+                description='downloading multiturn dataset'
             )
             with ZipFile(path) as zfile:
                 zfile.extractall(data_path)
+
+    def download_parsed(self, data_path, file_name='parsed_tasks_multiturn_dataset.tar.bz2',
+                        force_download=False):
+        path = os.path.join(data_path, file_name)
+        if (not os.path.exists(path) or force_download):
+            url = self.DATASET_URL[self.dataset_version]
+            if isinstance(url, str):
+                raise ValueError('this dataset version does not support parsed data!')
+            url = url[1]
+            download(
+                url=url,
+                destination=path,
+                data_prefix=data_path,
+                description='downloading task dataset'
+            )
+
+    def dump_tasks_dataset(self, path):
+        print('caching tasks dataset... ', end='')
+        pickled = pickle.dumps(self.tasks)
+        compressed = bz2.compress(pickled)
+        with open(path, 'wb') as f:
+            f.write(compressed)
+        print('done')
+
+    def load_tasks_dataset(self, path):
+        with open(path, 'rb') as f:
+            data = f.read()
+        data = bz2.decompress(data)
+        self.tasks = pickle.loads(data)
 
     def process(self, s):
         return re.sub(r'\$+', '\n', s)
@@ -188,7 +241,8 @@ class IGLUDataset(Tasks):
 
         """
         # Partition key
-        for sess_id, gr in dialogs.groupby('PartitionKey'):
+        groups = dialogs.groupby('PartitionKey')
+        for sess_id, gr in tqdm(groups, total=len(groups), desc='parsing dataset'):
             # This corresponds to the entire dialog between steps with
             # changes to the blocks
             utt_seq = []
@@ -265,11 +319,19 @@ class IGLUDataset(Tasks):
 class SingleTurnIGLUDataset(IGLUDataset):
     SINGLE_TURN_INSTRUCTION_FILENAME = 'single_turn_instructions.csv'
     MULTI_TURN_INSTRUCTION_FILENAME = 'multi_turn_dialogs.csv'
-    URL = 'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip'
+    DATASET_URL = {
+        "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip',
+        "v0.1.0-rc2": (
+            'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip',
+            'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_single_turn_dataset.tar.bz2'
+        )
+    }
 
-    def __init__(self, task_kwargs=None, force_download=False, limit=None) -> None:
+    def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None, 
+            force_download=False, limit=None) -> None:
         self.limit = limit
-        super().__init__()
+        super().__init__(dataset_version=dataset_version, 
+            task_kwargs=task_kwargs, force_download=force_download)
 
     def get_instructions(self, data_path):
         single_turn_df = pd.read_csv(os.path.join(
@@ -311,9 +373,12 @@ class SingleTurnIGLUDataset(IGLUDataset):
         if os.path.exists(instruction_filepath) and not force_download:
             print("Using cached dataset")
             return
-        print(f"Downloading dataset from {SingleTurnIGLUDataset.URL}")
+        url = self.DATASET_URL[self.dataset_version]
+        if not isinstance(url, str):
+            url = url[0]
+        print(f"Downloading dataset from {url}")
         download(
-            url=SingleTurnIGLUDataset.URL,
+            url=url,
             destination=path,
             data_prefix=data_path
         )
@@ -399,10 +464,13 @@ class SingleTurnIGLUDataset(IGLUDataset):
 
         """
         dialogs = dialogs[dialogs.InitializedWorldPath.notna()]
-
+        dialogs['InitializedWorldPath'] = dialogs['InitializedWorldPath'] \
+            .apply(lambda x: x.replace('\\', os.path.sep))
+        dialogs['InitializedWorldPath'] = dialogs['InitializedWorldPath'] \
+            .apply(lambda x: x.replace('/', os.path.sep))
         multiturn_dialogs = self.get_multiturn_dialogs(path)
         empty_target_grids = 0
-        for _, row in dialogs.iterrows():
+        for _, row in tqdm(dialogs.iterrows(), total=len(dialogs), desc='parsing dataset'):
             assert row.InitializedWorldStructureId is not None
             # Read initial structure
             initial_world_path = os.path.join(path, row.InitializedWorldPath)

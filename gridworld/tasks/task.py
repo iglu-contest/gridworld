@@ -221,6 +221,8 @@ class Subtasks(Tasks):
         self.current = self.reset()
 
     def __getattr__(self, name):
+        if name == 'current':
+            return
         return getattr(self.current, name)
 
     def reset(self):

@@ -1,8 +1,9 @@
+import sys
+sys.path.insert(0, '../')
 from gridworld.data import CDMDataset, IGLUDataset
 import gridworld
 from time import sleep
-import sys
-sys.path.insert(0, '../')
+
 from gridworld.data import CDMDataset, IGLUDataset, SingleTurnIGLUDataset
 DATASET_VERSION = "v0.1.0-rc1"
 
