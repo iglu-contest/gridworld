@@ -127,7 +127,7 @@ class Renderer(Window):
             .get_color_buffer()
             .get_image_data()
             .get_data()
-        ).reshape((width, height, 4))[::-1]
+        ).reshape((height, width, 4))[::-1]
 
     def add_block(self, position, texture_id, **kwargs):
         x, y, z = position
