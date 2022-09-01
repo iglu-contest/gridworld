@@ -99,9 +99,17 @@ class GridWorld(Env):
         self.name = name
         self.do_render = render
         if render and not fake:
-            from gridworld.render import Renderer, setup
+            from gridworld.render import Renderer, setup, PLATFORM
+            import pyglet
+            if PLATFORM == 'Darwin' and not pyglet.options["headless"]:
+                # for some reason COCOA renderer sets the viewport size 
+                # to be twice as the requested size. This is a temporary 
+                # workaround
+                div = 2
+            else:
+                div = 1                
             self.renderer = Renderer(self.world, self.agent,
-                                     width=self.render_size[0], height=self.render_size[1],
+                                     width=self.render_size[0] // div, height=self.render_size[1] // div,
                                      caption='Pyglet', resizable=False)
             setup()
         else:
@@ -110,12 +118,19 @@ class GridWorld(Env):
 
     def enable_renderer(self):
         if self.renderer is None and not self.fake:
-            from gridworld.render import Renderer, setup
+            from gridworld.render import Renderer, setup, PLATFORM
+            import pyglet
+            if PLATFORM == 'Darwin' and not pyglet.options["headless"]:
+                # for some reason COCOA renderer sets the viewport size 
+                # to be twice as the requested size. This is a temporary 
+                # workaround
+                div = 2
+            else:
+                div = 1     
             self.reset()
             self.world.deinit()
-            from gridworld.render import Renderer, setup
             self.renderer = Renderer(self.world, self.agent,
-                                     width=self.render_size[0], height=self.render_size[0],
+                                     width=self.render_size[0] // div, height=self.render_size[0] // div,
                                      caption='Pyglet', resizable=False)
             setup()
             self.do_render = True
