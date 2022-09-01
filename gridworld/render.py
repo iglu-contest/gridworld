@@ -1,4 +1,6 @@
 import os
+import pyglet
+pyglet.options['shadow_window'] = False
 if os.environ.get('IGLU_HEADLESS', '1') == '1':
     import pyglet
     pyglet.options["headless"] = True
@@ -7,6 +9,7 @@ if os.environ.get('IGLU_HEADLESS', '1') == '1':
         pyglet.options['headless_device'] = int(devices.split(',')[0])
 from pyglet.window import Window
 from pyglet.gl import *
+from pyglet import app
 from pyglet.graphics import Batch, TextureGroup
 from scipy.ndimage import gaussian_filter
 from pyglet import image
@@ -15,11 +18,14 @@ from filelock import FileLock
 import math
 import numpy as np
 import os
+import time
+import platform
 from PIL import Image
 import gridworld
 
 from .utils import WHITE, GREY, cube_vertices, cube_normals, id2texture, id2top_texture
 
+_60FPS = 1./60
 
 def setup_fog():
     """ Configure the OpenGL fog properties.
@@ -64,6 +70,12 @@ class Renderer(Window):
             color=(0, 0, 0, 255))
         self.model._initialize()
         self.buffer_manager = pyglet.image.get_buffer_manager()
+        self.system_type = platform.system()
+        self.last_frame_dt = 0
+        self.realtime_rendering = os.environ.get('IGLU_RENDER_REALTIME', False)
+        if not pyglet.options['headless']:
+            app.platform_event_loop.start()
+            self.dispatch_event('on_enter')
 
     def set_2d(self):
         """ Configure OpenGL to draw in 2d.
@@ -85,8 +97,6 @@ class Renderer(Window):
         """
         width, height = self.get_size()
         glEnable(GL_DEPTH_TEST)
-        # glEnable(GL_LIGHTING)
-        # glEnable(GL_LIGHT0)
         viewport = self.get_viewport_size()
         glViewport(0, 0, max(1, viewport[0]), max(1, viewport[1]))
         glMatrixMode(GL_PROJECTION)
@@ -99,9 +109,6 @@ class Renderer(Window):
         glRotatef(-y, math.cos(math.radians(x)), 0, math.sin(math.radians(x)))
         x, y, z = self.agent.position
         glTranslatef(-x, -y, -z)
-        # glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*4)(0.0,9,0.0,1))
-        # glLightfv(GL_LIGHT0, GL_AMBIENT, (GLfloat*4)(1,1,1,1))
-        # glLightfv(GL_LIGHT0, GL_DIFFUSE, (GLfloat*4)(1.0,1.0,1.0,1))
 
 
     def on_draw(self):
@@ -120,14 +127,33 @@ class Renderer(Window):
             self.draw_reticle()
 
     def render(self):
+        if not pyglet.options['headless']:
+            t = time.perf_counter()
+            self.switch_to()
         self.on_draw()
         width, height = self.get_size()
-        return np.asanyarray(
+        if self.system_type == 'Darwin' and not pyglet.options["headless"]:
+            new_shape = (height, width, 16)
+        else:
+            new_shape = (height, width, 4)
+        rendered = np.asanyarray(
             self.buffer_manager
             .get_color_buffer()
             .get_image_data()
             .get_data()
-        ).reshape((height, width, 4))[::-1]
+        ).reshape(new_shape)[::-1]
+        if not pyglet.options['headless']:
+            dt = time.perf_counter() - t
+            self.last_frame_dt += dt
+            if self.realtime_rendering:
+                self.flip()
+            if self.last_frame_dt >= _60FPS:
+                if not self.realtime_rendering:
+                    self.flip()
+                app.platform_event_loop.step(dt)
+                self.last_frame_dt = 0.
+        return rendered
+        
 
     def add_block(self, position, texture_id, **kwargs):
         x, y, z = position
