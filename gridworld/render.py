@@ -26,6 +26,7 @@ import gridworld
 from .utils import WHITE, GREY, cube_vertices, cube_normals, id2texture, id2top_texture
 
 _60FPS = 1./60
+PLATFORM = platform.system()
 
 def setup_fog():
     """ Configure the OpenGL fog properties.
@@ -70,9 +71,8 @@ class Renderer(Window):
             color=(0, 0, 0, 255))
         self.model._initialize()
         self.buffer_manager = pyglet.image.get_buffer_manager()
-        self.system_type = platform.system()
         self.last_frame_dt = 0
-        self.realtime_rendering = os.environ.get('IGLU_RENDER_REALTIME', False)
+        self.realtime_rendering = os.environ.get('IGLU_RENDER_REALTIME', '0') == '1'
         if not pyglet.options['headless']:
             app.platform_event_loop.start()
             self.dispatch_event('on_enter')
@@ -132,8 +132,8 @@ class Renderer(Window):
             self.switch_to()
         self.on_draw()
         width, height = self.get_size()
-        if self.system_type == 'Darwin' and not pyglet.options["headless"]:
-            new_shape = (height, width, 16)
+        if PLATFORM == 'Darwin' and not pyglet.options["headless"]:
+            new_shape = (height * 2, width * 2, 4)
         else:
             new_shape = (height, width, 4)
         rendered = np.asanyarray(
