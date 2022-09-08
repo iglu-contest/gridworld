@@ -353,7 +353,3 @@ class ActionsParser:
         game_session.dialogs = self.dialog_step(session=session, steps=steps)
         game_session.name = session
         return game_session
-
-if __name__ == '__main__':
-    parser = ActionsParser()
-    parser.parse('/Users/admin/workspace/gridworld2/examples/data/iglu/builder-data/17-c163/step-2')
