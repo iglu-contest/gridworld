@@ -1,37 +1,19 @@
-from collections import defaultdict
-import re
-import os
 import bz2
 import pickle
 import pathlib
-import json
 import warnings
-from time import time
 from functools import partial
-from argparse import ArgumentParser
 import multiprocessing
-
-from gridworld.visualizer import Visualizer
 
 warnings.filterwarnings('ignore', '.*box bound precision lowered.*', category=UserWarning)
 warnings.filterwarnings('ignore', '.*minerl_patched.utils.process_watcher.*', category=RuntimeWarning)
 
 import logging
-import pandas as pd
-import numpy as np
 import gym
 from tqdm import tqdm
 
-# from minerl_patched.data.util.constants import ACTIONABLE_KEY, HANDLER_TYPE_SEPERATOR, MONITOR_KEY, OBSERVABLE_KEY, REWARD_KEY
-
-from gridworld.tasks.task import BUILD_ZONE_SIZE
-from ..iglu_dataset import IGLUDataset, block_colour_map, DATA_PREFIX
-
-
 from .parse import ActionsParser
-# from .render import Renderer
-from .common import GameSession, DEFAULT_POS, VOXELWORLD_GROUND_LEVEL
-from gridworld.data.iglu_dataset import block_colour_map
+from gridworld.data.iglu_dataset import IGLUDataset
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +23,7 @@ class ActionsAdapter:
     def __init__(self):
         self.renderer = None
         self.parser = None
+        self.dataset = IGLUDataset()
 
     def action_space(self):
         env = gym.make('IGLUGridworldVector-v0')
@@ -52,7 +35,7 @@ class ActionsAdapter:
         return self._dir_non_emtpy('buffer')
 
     def _dir_non_emtpy(self, subdir):
-        path = pathlib.Path(DATA_PREFIX)
+        path = pathlib.Path(self.dataset.get_data_path())
         path = path / subdir
         return path.exists() and len(list(path.glob('*'))) != 0
 
@@ -66,7 +49,7 @@ class ActionsAdapter:
 
     def save_session(self, session, save_path=None):
         if save_path is None:
-            path = pathlib.Path(DATA_PREFIX).parent
+            path = pathlib.Path(self.dataset.get_data_path()).parent
             sessions_path = path / 'buffer'
             sessions_path.mkdir(exist_ok=True)
         else:
@@ -78,28 +61,28 @@ class ActionsAdapter:
 
     def load_session(self, session_name, load_path=None):
         if load_path is None:
-            path = pathlib.Path(DATA_PREFIX).parent
+            path = pathlib.Path(self.dataset.get_data_path()).parent
             session_path = path / 'buffer' / session_name
         else:
             session_path = pathlib.Path(load_path)
         with open(session_path, 'rb') as f:
             compressed_session = f.read()
         return pickle.loads(bz2.decompress(compressed_session))
-    
-    def render_session_video(self, session, 
-            visualize=False, postprocess=True, 
-            render_size=(64, 64), outpath=None, 
+
+    def render_session_video(self, session,
+            visualize=False, postprocess=True,
+            render_size=(64, 64), outpath=None,
             single_turn=False
         ):
         """
 
         Args:
-            session (GameSession): 
+            session (GameSession):
             visualize (bool, optional): whether to render a high-resolution human friendly visualization
             debug (bool, optional): whether to add a debug info on each screen. Defaults to True.
             postprocess (bool, optional): whether to re-encode video using h264 codec. !!! REQUIRES THE LATEST FFMPEG !!!
         """
-        path = pathlib.Path(outpath or DATA_PREFIX)
+        path = pathlib.Path(outpath or self.dataset.get_data_path())
         if visualize:
             raise ValueError('this mode does not work yet')
             session_path = path / 'session_videos'
@@ -127,7 +110,7 @@ class ActionsAdapter:
                     visualizer.postproc_video(session_path / f'{session.name}_{i // 2 - 1}')
 
 def run(
-        session_id=None, 
+        session_id=None,
         path=None,
         outpath=None,
         dialogs_path=None,
@@ -186,7 +169,7 @@ def run(
                     raise
 
 
-def run_multiprocess(session_id=None, num_workers=-1, overwrite=False, adapt=True, 
+def run_multiprocess(session_id=None, num_workers=-1, overwrite=False, adapt=True,
         render=True, visualize=False, step_callback=None):
     run_one = partial(run, overwrite=overwrite, adapt=adapt, render=render, visualize=visualize, step_callback=step_callback)
     path = pathlib.Path(DATA_PREFIX)
