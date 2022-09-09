@@ -34,7 +34,7 @@ class ActionsParser:
         self.position = np.array([0., 0., 0.]) # x y z
         self.prev_line = None
         self.last_grid = []
-        
+
         self.data_sequence = []
         self.global_vw_step = 0
 
@@ -45,7 +45,7 @@ class ActionsParser:
         self.global_vw_step = 0
 
     def new_event(
-            self, kind, params, grid=None, gridUpdate=None, 
+            self, kind, params, grid=None, gridUpdate=None,
             camera=None, position=None, step=None, turn=None
         ):
         if grid is not None and gridUpdate is not None:
@@ -67,7 +67,7 @@ class ActionsParser:
             self.position = copy(position)
         return VWEvent(
             kind=kind, params=params,
-            grid=grid, camera=camera, position=position, 
+            grid=grid, camera=camera, position=position,
             step=step, turn=turn
         )
 
@@ -93,7 +93,7 @@ class ActionsParser:
         #     adjusted_pitch = (np.pi / 2 - adjusted_pitch) * 180 / np.pi
         #     camera_vec[0] = min(90, max(adjusted_pitch, 0))
         return self.new_event(
-            kind='set_look', params=args, 
+            kind='set_look', params=args,
             camera=camera_vec, step=n, turn=g
         )
 
@@ -131,12 +131,11 @@ class ActionsParser:
             self.agent.rotation = self.camera.tolist()
             vector = self.world.get_sight_vector(self.agent)
             block, prev = self.world.hit_test(self.agent.position, vector, max_distance=10)
-            new_block = list(map(int, args[:4]))
-            # new_block[1] += 5
-            # new_block[3] += 5
-            new_block[2] -= VOXELWORLD_GROUND_LEVEL + 1
-            new_block[0] = block_colour_map.get(new_block[0], 1) # todo: check why some have broken id.
-            gridUpdate = [tuple(new_block)]
+            bid, x, y, z = list(map(int, args[:4]))
+            y -= VOXELWORLD_GROUND_LEVEL + 1
+            bid = block_colour_map.get(bid, 1)
+            new_block = (x, y, z, bid)
+            gridUpdate = [new_block]
         else:
             gridUpdate = None
         return self.new_event(
@@ -177,7 +176,7 @@ class ActionsParser:
         start_position = (x, y, z, pitch, yaw)
 
         initial_blocks = [
-            (x, y - VOXELWORLD_GROUND_LEVEL - 1, z, block_colour_map.get(bid, 1)) # TODO: block has  
+            (x, y - VOXELWORLD_GROUND_LEVEL - 1, z, block_colour_map.get(bid, 1)) # TODO: block has
             for (x, y, z, bid) in data['worldEndingState']['blocks']
         ]
         return start_position, initial_blocks
@@ -193,7 +192,7 @@ class ActionsParser:
                 outdir, _ = os.path.split(output)
                 os.makedirs(outdir, exist_ok=True)
                 name = os.path.join(
-                    outdir, 
+                    outdir,
                     f'mismatch_turn_{event.turn}_step_{i}_'
                     f'action_{k}_y_{event.position[1].round(2).item()}.png'
                 )
@@ -213,19 +212,19 @@ class ActionsParser:
         else:
             data = sourcefile
             tape = fix_log(data['tape'].strip()).split('\n')
-            
+
             j = 0
             if g > 0 and 'prevWorldEndingState' in data:
                 # skip state restoring actions
                 prev_world = data['prevWorldEndingState']['blocks']
-                # todo: why there is some strange moving actions at random? 
+                # todo: why there is some strange moving actions at random?
                 if len(prev_world) != 0:
                     if 'action step_' in tape[j]:
                         j += 1
                     # first go placement actions
                     while 'action select_and_place_block' in tape[j]:
                         j += 1
-                    
+
                     assert 'block_change' in tape[j]
                     blks = re.sub('\)', '),', ' '.join(tape[j].split(' ')[2:]))
                     blks = eval(f'({blks})')
@@ -299,10 +298,10 @@ class ActionsParser:
         game_session.dialogs = self.dialog_step_single_turn(session=key_name)
         game_session.name = session
         return game_session
-        
 
-    def parse_session(self, 
-            path, session, start_step=0, steps=-1, 
+
+    def parse_session(self,
+            path, session, start_step=0, steps=-1,
             init_from_end=False, verbose=False, position=None,
             single_turn=False
         ):
