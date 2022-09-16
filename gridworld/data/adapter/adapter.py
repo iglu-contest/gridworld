@@ -136,7 +136,8 @@ def run(
         if len(dirs) == 0: # To handle single-turn
             dirs = list(path.glob('*game-*/'))
     else:
-        dirs = [path / session_id / f'{session_id}-step-action']
+        # dirs = [path / session_id / f'{session_id}-step-action']
+        dirs = [path / session_id]
     for data_dir in tqdm(dirs):
         if single_turn:
             session_name = data_dir.name

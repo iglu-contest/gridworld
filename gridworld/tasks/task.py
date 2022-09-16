@@ -208,7 +208,7 @@ class Tasks:
 class Subtasks(Tasks):
     """ Subtasks object represents a staged task where subtasks represent separate segments
     """
-    def __init__(self, dialog, structure_seq, invariant=False, progressive=True) -> None:
+    def __init__(self, dialog, structure_seq, invariant=False, progressive=True, tape_files=[]) -> None:
         self.dialog = dialog
         self.invariant = invariant
         self.progressive = progressive
@@ -217,6 +217,7 @@ class Subtasks(Tasks):
         self.full = False
         self.task_start = 0
         self.task_goal = 0
+        self.tape_files = tape_files
         self.full_structure = self.to_dense(self.structure_seq[-1])
         self.current = self.reset()
 
@@ -281,6 +282,7 @@ class Subtasks(Tasks):
             full_grid=self.full_structure,
             last_instruction='\n'.join(self.dialog[tid])
         )
+        task.tape_file = self.tape_files[turn_goal]
         # To properly init max_int and prev_grid_size fields
         task.reset()
         return task

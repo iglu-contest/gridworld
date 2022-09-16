@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import bz2
 from collections import defaultdict
+from os.path import join as pjoin
 
 from gridworld import data
 
@@ -96,17 +97,17 @@ class IGLUDataset(Tasks):
             'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_multi_turn_dataset.tar.bz2'
         )
     }  # Dictionary holding dataset version to dataset URI mapping
-    DIALOGS_FILENAME = 'dialogs.csv' 
-    
+    DIALOGS_FILENAME = 'dialogs.csv'
+
     def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None, force_download=False) -> None:
         """
         Collaborative dataset for the IGLU competition.
 
-        Current version of the dataset covers 31 structures in 128 staged game sessions 
+        Current version of the dataset covers 31 structures in 128 staged game sessions
         resulting in 608 tasks.
 
         Args:
-            dataset_version: Which dataset version to use. 
+            dataset_version: Which dataset version to use.
             task_kwargs: Task-class specific kwargs. For reference see gridworld.task.Task class
             force_download: Whether to force dataset downloading
         """
@@ -122,6 +123,7 @@ class IGLUDataset(Tasks):
         filename = self.DATASET_URL[self.dataset_version][1].split('/')[-1]
         try:
             # first, try downloading the lightweight parsed dataset
+            # raise NameError()
             self.download_parsed(data_path=data_path, file_name=filename, force_download=force_download)
             self.load_tasks_dataset(os.path.join(data_path, filename))
         except:
@@ -247,6 +249,7 @@ class IGLUDataset(Tasks):
             # changes to the blocks
             utt_seq = []
             blocks = []
+            tape_files = []
             if not os.path.exists(f'{path}/builder-data/{sess_id}'):
                 continue
             # Each session should have a single taskId associated.
@@ -273,10 +276,14 @@ class IGLUDataset(Tasks):
                         continue
                     blocks.append([])
                     curr_step = f'{path}/builder-data/{sess_id}/step-{row.StepId}'
+                    if curr_step == "/home/macote/.iglu/data/iglu/builder-data/13-c71/step-2":
+                        from ipdb import set_trace; set_trace()
+
                     if not os.path.exists(curr_step):
                         break
                         # TODO: in this case the multiturn collection was likely
                         # "reset" so we need to stop parsing this session. Need to check that.
+                    tape_files.append(curr_step)
                     with open(curr_step) as f:
                         step_data = json.load(f)
                     for block in step_data['worldEndingState']['blocks']:
@@ -297,14 +304,23 @@ class IGLUDataset(Tasks):
                 i += 1
             if len(blocks) > 0:
                 # Create random subtasks from the sequence of dialogs and blocks
-                task = Subtasks(utt_seq, blocks, **self.task_kwargs)
+                task = Subtasks(utt_seq, blocks, **self.task_kwargs, tape_files=tape_files)
                 self.tasks[structure_id].append(task)
 
     def reset(self):
         sample = np.random.choice(list(self.tasks.keys()))
         sess_id = np.random.choice(len(self.tasks[sample]))
+        print(sample, sess_id)
         self.current = self.tasks[sample][sess_id]
         return self.current.reset()
+
+    def get_expert_actions(self, task_id, session_id, turn_id):
+        from gridworld.data.adapter.parse import ActionsParser
+        parser = ActionsParser(hits_table=pjoin(self.get_data_path(), self.DIALOGS_FILENAME))
+        session = parser.parse_session(pjoin(self.get_data_path(), 'builder-data'), f"{session_id}-{task_id}", turn_id, steps=1)
+
+
+        from ipdb import set_trace; set_trace()
 
     def __len__(self):
         return sum(len(sess.structure_seq) for sess in sum(self.tasks.values(), []))
@@ -327,10 +343,10 @@ class SingleTurnIGLUDataset(IGLUDataset):
         )
     }
 
-    def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None, 
+    def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None,
             force_download=False, limit=None) -> None:
         self.limit = limit
-        super().__init__(dataset_version=dataset_version, 
+        super().__init__(dataset_version=dataset_version,
             task_kwargs=task_kwargs, force_download=force_download)
 
     def get_instructions(self, data_path):
@@ -519,3 +535,6 @@ class SingleTurnIGLUDataset(IGLUDataset):
         for task_id, tasks in self.tasks.items():
             for j, task in enumerate(tasks):
                 yield task_id, j, 1, task
+
+
+DATA_PREFIX = IGLUDataset.get_data_path()

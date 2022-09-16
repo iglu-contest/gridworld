@@ -1,4 +1,5 @@
 import math
+import numpy as np
 from typing import Optional
 
 from ..utils import WHITE, GREY, BLUE, FACES
@@ -173,23 +174,26 @@ class World:
         """
         if any(agent.strafe):
             x, y = agent.rotation
-            strafe = math.degrees(math.atan2(*agent.strafe))
+            strafe = math.degrees(math.atan2(*np.sign(agent.strafe)))
             y_angle = math.radians(y)
             x_angle = math.radians(x + strafe)
             if agent.flying:
-                m = math.cos(y_angle)
-                dy = math.sin(y_angle)
+                m = np.sqrt(np.sum(np.array(agent.strafe)**2))
+                #m = math.cos(y_angle)
+                dy = 0#math.sin(y_angle)
                 if agent.strafe[1]:
                     # Moving left or right.
                     dy = 0.0
                     m = 1
-                if agent.strafe[0] > 0:
-                    # Moving backwards.
-                    dy *= -1
+                # if agent.strafe[0] > 0:
+                #     # Moving backwards.
+                #     dy *= -1
                 # When you are flying up or down, you have less left and right
                 # motion.
-                dx = math.cos(x_angle) * m
-                dz = math.sin(x_angle) * m
+                #dx = math.cos(x_angle) * m
+                #dz = math.sin(x_angle) * m
+                dx = math.cos(x_angle) * 0.85
+                dz = math.sin(x_angle) * 0.85
             else:
                 dy = 0.0
                 dx = math.cos(x_angle)
@@ -255,7 +259,7 @@ class World:
         # collisions
         x, y, z = agent.position
         cand = (x + dx, y + dy, z + dz)
-        if self.build_zone(*cand, pad=2):
+        if self.build_zone(*cand, pad=100):
             x, y, z = self.collide(agent, cand, PLAYER_HEIGHT)
         elif not agent.flying:
             x, y, z = self.collide(agent, (x, y + dy, z), PLAYER_HEIGHT)
@@ -341,8 +345,8 @@ class World:
         y = max(-90, min(90, y))
         agent.rotation = (x, y)
 
-    def movement(self, agent, 
-            strafe: list, dy: float, inventory: Optional[int] = None, 
+    def movement(self, agent,
+            strafe: list, dy: float, inventory: Optional[int] = None,
         ):
         agent.strafe[0] += strafe[0]
         agent.strafe[1] += strafe[1]
@@ -417,8 +421,8 @@ class World:
         """
         Args:
             action: dictionary with keys:
-              * 'movement':  Box(low=-1, high=1, shape=(3,)) - forward/backward, left/right, 
-                  up/down movement 
+              * 'movement':  Box(low=-1, high=1, shape=(3,)) - forward/backward, left/right,
+                  up/down movement
               * 'camera': Box(low=[-180, -90], high=[180, 90], shape=(2,)) - camera movement (yaw, pitch)
               * 'inventory': Discrete(7) - 0 for no-op, 1-6 for selecting block color
               * 'placement': Discrete(3) - 0 for no-op, 1 for placement, 2 for breaking

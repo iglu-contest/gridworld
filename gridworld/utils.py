@@ -7,7 +7,7 @@ TICKS_PER_SEC = 60000
 SECTOR_SIZE = 16
 
 WALKING_SPEED = 5
-FLYING_SPEED = 15
+FLYING_SPEED = 5
 
 GRAVITY = 20.0
 MAX_JUMP_HEIGHT = 1.2 # About the height of a block.
@@ -92,9 +92,9 @@ def tex_coord(x, y, n=4, split=False, side_n=0):
     dx = x * m
     dy = y * m
     return (
-        cx + dx,     cy + dy, 
-        cx + dx + m1, cy + dy, 
-        cx + dx + m1, cy + dy + m1, 
+        cx + dx,     cy + dy,
+        cx + dx + m1, cy + dy,
+        cx + dx + m1, cy + dy + m1,
         cx + dx,     cy + dy + m1
     )
 
