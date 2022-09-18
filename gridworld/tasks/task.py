@@ -233,9 +233,9 @@ class Subtasks(Tasks):
         """
         if self.next is None:
             if len(self.structure_seq) == 1:
-                turn = 0
+                turn = -1
             else:
-                turn = np.random.choice(len(self.structure_seq))
+                turn = np.random.choice(len(self.structure_seq)) - 1
             turn_goal = turn + 1
         else:
             turn = self.next

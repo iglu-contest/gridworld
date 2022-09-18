@@ -96,17 +96,17 @@ class IGLUDataset(Tasks):
             'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_multi_turn_dataset.tar.bz2'
         )
     }  # Dictionary holding dataset version to dataset URI mapping
-    DIALOGS_FILENAME = 'dialogs.csv' 
-    
+    DIALOGS_FILENAME = 'dialogs.csv'
+
     def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None, force_download=False) -> None:
         """
         Collaborative dataset for the IGLU competition.
 
-        Current version of the dataset covers 31 structures in 128 staged game sessions 
+        Current version of the dataset covers 31 structures in 128 staged game sessions
         resulting in 608 tasks.
 
         Args:
-            dataset_version: Which dataset version to use. 
+            dataset_version: Which dataset version to use.
             task_kwargs: Task-class specific kwargs. For reference see gridworld.task.Task class
             force_download: Whether to force dataset downloading
         """
@@ -117,14 +117,23 @@ class IGLUDataset(Tasks):
         if task_kwargs is None:
             task_kwargs = {}
         self.task_kwargs = task_kwargs
-        data_path = self.get_data_path()
-        assert isinstance(self.DATASET_URL[self.dataset_version], tuple), 'Wrong dataset version'
-        filename = self.DATASET_URL[self.dataset_version][1].split('/')[-1]
-        try:
-            # first, try downloading the lightweight parsed dataset
-            self.download_parsed(data_path=data_path, file_name=filename, force_download=force_download)
-            self.load_tasks_dataset(os.path.join(data_path, filename))
-        except:
+        data_path, custom = self.get_data_path()
+        if isinstance(self.DATASET_URL[self.dataset_version], tuple):
+            filename = self.DATASET_URL[self.dataset_version][1].split('/')[-1]
+        else:
+            filename = self.DATASET_URL[self.dataset_version].split('/')[-1]
+        if custom:
+            filename = f'cached_{filename}'
+        parse = False
+        if not custom:
+            try:
+                # first, try downloading the lightweight parsed dataset
+                self.download_parsed(data_path=data_path, file_name=filename, force_download=force_download)
+                self.load_tasks_dataset(os.path.join(data_path, filename))
+                parse = True
+            except:
+                parse = True
+        if custom or parse:
             print('Loading parsed dataset failed. Downloading full dataset.')
             # if it fails, download it manually and cache it
             self.download_dataset(data_path, force_download)
@@ -151,13 +160,16 @@ class IGLUDataset(Tasks):
         if 'IGLU_DATA_PATH' in os.environ:
             data_path = os.path.join(
                 os.environ['IGLU_DATA_PATH'], 'data', 'iglu')
+            custom = True
         elif 'HOME' in os.environ:
             data_path = os.path.join(
                 os.environ['HOME'], '.iglu', 'data', 'iglu')
+            custom = False
         else:
             data_path = os.path.join(
                 os.path.expanduser('~'), '.iglu', 'data', 'iglu')
-        return data_path
+            custom = False
+        return data_path, custom
 
     def download_dataset(self, data_path, force_download):
         path = os.path.join(data_path, 'iglu_dataset.zip')
@@ -254,6 +266,8 @@ class IGLUDataset(Tasks):
             structure_id = gr.structureId.values[0]
             # Read the utterances and block end positions for each step.
             for i, row in gr.sort_values('StepId').reset_index(drop=True).iterrows():
+                if not row.IsHITQualified:
+                    continue
                 if row.StepId % 2 == 1:
                     # Architect step
                     if isinstance(row.instruction, str):
@@ -265,8 +279,6 @@ class IGLUDataset(Tasks):
                             f'<Architect> {self.process(row.Answer4ClarifyingQuestion)}')
                 else:
                     # Builder step
-                    if not row.IsHITQualified:
-                        continue
                     if isinstance(row.ClarifyingQuestion, str):
                         utt_seq[-1].append(
                             f'<Builder> {self.process(row.ClarifyingQuestion)}')
@@ -283,6 +295,9 @@ class IGLUDataset(Tasks):
                         x, y, z, bid = self.transform_block(block)
                         blocks[-1].append((x, y, z, bid))
             # Aggregate all previous blocks into each step
+            if len(blocks) < len(utt_seq):
+                # handle the case of missing of the last blocks record
+                utt_seq = utt_seq[:len(blocks)]
             i = 0
             while i < len(blocks):
                 # Collapse steps where there are no block changes.
@@ -294,10 +309,12 @@ class IGLUDataset(Tasks):
                         blocks = blocks[:i] + blocks[i + 1:]
                         utt_seq[i] = utt_seq[i] + utt_seq[i + 1]
                         utt_seq = utt_seq[:i + 1] + utt_seq[i + 2:]
-                i += 1
+                else:
+                    i += 1
             if len(blocks) > 0:
                 # Create random subtasks from the sequence of dialogs and blocks
                 task = Subtasks(utt_seq, blocks, **self.task_kwargs)
+                assert len(utt_seq) == len(blocks)
                 self.tasks[structure_id].append(task)
 
     def reset(self):
@@ -327,10 +344,10 @@ class SingleTurnIGLUDataset(IGLUDataset):
         )
     }
 
-    def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None, 
+    def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None,
             force_download=False, limit=None) -> None:
         self.limit = limit
-        super().__init__(dataset_version=dataset_version, 
+        super().__init__(dataset_version=dataset_version,
             task_kwargs=task_kwargs, force_download=force_download)
 
     def get_instructions(self, data_path):
@@ -358,13 +375,16 @@ class SingleTurnIGLUDataset(IGLUDataset):
         """
         if 'IGLU_DATA_PATH' in os.environ:
             data_path = os.environ['IGLU_DATA_PATH']
+            custom = True
         elif 'HOME' in os.environ:
             data_path = os.path.join(
                 os.environ['HOME'], '.iglu', 'data', 'single_turn_dataset')
+            custom = False
         else:
             data_path = os.path.join(
                 os.path.expanduser('~'), '.iglu', 'data', 'single_turn_dataset')
-        return data_path
+            custom = False
+        return data_path, custom
 
     def download_dataset(self, data_path, force_download):
         instruction_filepath = os.path.join(
