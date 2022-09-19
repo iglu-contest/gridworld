@@ -295,7 +295,7 @@ class Wrapper(gymWrapper):
     def __getattr__(self, name):
         return getattr(self.env, name)
     
-    def render(self, mode, **kwargs):
+    def render(self, mode="human", **kwargs):
         if isinstance(self.env, GridWorld):
             return self.env.render()
         else:
