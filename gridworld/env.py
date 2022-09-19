@@ -20,9 +20,7 @@ class String(Space):
         return isinstance(obj, str)
 
 
-class Wrapper(gymWrapper):
-    def __getattr__(self, name):
-        return getattr(self.env, name)
+
 
 
 class GridWorld(Env):
@@ -130,7 +128,7 @@ class GridWorld(Env):
             self.reset()
             self.world.deinit()
             self.renderer = Renderer(self.world, self.agent,
-                                     width=self.render_size[0] // div, height=self.render_size[0] // div,
+                                     width=self.render_size[0] // div, height=self.render_size[1] // div,
                                      caption='Pyglet', resizable=False)
             setup()
             self.do_render = True
@@ -292,6 +290,16 @@ class GridWorld(Env):
             obs['pov'] = self.observation_space['pov'].sample()
         return obs, reward, done, {}
 
+
+class Wrapper(gymWrapper):
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+    
+    def render(self, mode, **kwargs):
+        if isinstance(self.env, GridWorld):
+            return self.env.render()
+        else:
+            return self.env.render(mode, **kwargs)
 
 class SizeReward(Wrapper):
   def __init__(self, env):
