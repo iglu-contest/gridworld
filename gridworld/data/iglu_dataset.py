@@ -541,3 +541,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
         for task_id, tasks in self.tasks.items():
             for j, task in enumerate(tasks):
                 yield task_id, j, 1, task
+
+    def __len__(self):
+        return len(sum(self.tasks.values(), []))
+        
