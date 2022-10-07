@@ -1,3 +1,4 @@
+from ipaddress import ip_address
 import os
 import json
 import re
@@ -130,8 +131,8 @@ class IGLUDataset(Tasks):
                 # first, try downloading the lightweight parsed dataset
                 self.download_parsed(data_path=data_path, file_name=filename, force_download=force_download)
                 self.load_tasks_dataset(os.path.join(data_path, filename))
-                parse = True
-            except:
+            except Exception as e:
+                print(e)
                 parse = True
         if custom or parse:
             print('Loading parsed dataset failed. Downloading full dataset.')
@@ -245,7 +246,7 @@ class IGLUDataset(Tasks):
                   columns will be used to fill the task.
                 - IsHITQualified: boolean indicating if the step is valid.
 
-        path : _type_
+        path : str
             Path with the state of the VoxelWorld grid after each session.
             Each session should have an associated directory named with the
             session id, with json files that describe the world state after
@@ -424,7 +425,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
         mturn_data_path = single_turn_row.InitializedWorldPath.split('/')[-2:]
         if len(mturn_data_path) != 2 or '-' not in mturn_data_path[1]:
             print(f"Error with initial data path {single_turn_row.InitializedWorldPath}."
-                  "Could not parse data path get previous dialogs.")
+                  "Could not parse data path to get previous dialogs.")
             return utterances
         mturn_game_id = mturn_data_path[0]
         try:
@@ -525,6 +526,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 row.InputInstruction)
             # Read utterances
             utterances = self.get_previous_dialogs(row, multiturn_dialogs)
+            utterances.append(last_instruction)
             utterances = '\n'.join(utterances)
             # Construct task
             task = self.create_task(
