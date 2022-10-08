@@ -1,32 +1,11 @@
 import math
 from typing import Optional
 
-from ..utils import WHITE, GREY, BLUE, FACES
+from ..utils import WHITE, GREY, FACES
 from ..utils import FLYING_SPEED, WALKING_SPEED, GRAVITY, TERMINAL_VELOCITY, PLAYER_HEIGHT, JUMP_SPEED
 from ..utils import normalize
 
-class Agent:
-    PAD = 0.25
-    __slots__ = 'flying', 'strafe', 'position', 'rotation', 'reticle', 'sustain', 'dy', 'time_int_steps', \
-        'inventory', 'active_block'
-    def __init__(self, sustain=False) -> None:
-        # When flying gravity has no effect and speed is increased.
-        self.flying = False
-        self.strafe = [0, 0]
-        self.position = (0, 0, 0)
-        self.rotation = (0, 0)
-        self.reticle = None
-
-        # actions are long-lasting state switches
-        self.sustain = sustain
-
-        # Velocity in the y (upward) direction.
-        self.dy = 0
-        self.time_int_steps = 2
-        self.inventory = [
-            20, 20, 20, 20, 20, 20
-        ]
-        self.active_block = BLUE
+from .entity import Agent
 
 class World:
     __slots__ = 'world', 'shown', 'placed', 'callbacks', 'initialized'
