@@ -19,14 +19,13 @@ import numpy as np
 import os
 import time
 import gridworld
-import euclid
 
 _60FPS = 1./60
 
 def vec(args):
     return (GLfloat * len(args))(*args)
 
-def setup():
+def gl_setup():
     """ Basic OpenGL configuration.
 
     """
@@ -49,22 +48,10 @@ def setup():
     glEnable(GL_DEPTH_TEST)
 
 
-class G(pyglet.graphics.Group):
-    def __init__(self, color):
-        super().__init__()
-        self.color = color
-        
-    def set_state(self):
-        r, g, b = self.color
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, vec([r, g, b, 1.0]))
-
-    def unset_state(self):
-        pass
-    
-
 class Renderer(Window):
     def __init__(self, agent, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        gl_setup()
         self.entities = {}
         self.agent = agent
         self.batch = Batch()
@@ -77,13 +64,16 @@ class Renderer(Window):
                 if asset.endswith(".obj"):
                     name = asset[:-4]
                     o = OBJ(os.path.join(assets_path, asset))
-#                    o.scale(.25, .25, .25)
                     self.entity_assets[name] = o
+        self.playing_field = Checker()
+        self.playing_field.add_to(self.batch)
         self.buffer_manager = pyglet.image.get_buffer_manager()
         
     def on_draw(self, camera=None):
-        """ Called by pyglet to draw the canvas.
-
+        """ 
+        camera is an ((x,y,z), (tx, ty, tz)) tuple where
+        x, y, z is the location in space of the camera and (tx, ty, tz) is the target
+        direction
         """
         self.clear()
         viewport = self.get_viewport_size()
@@ -91,17 +81,14 @@ class Renderer(Window):
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         width, height = self.get_size()
-        gluPerspective(90.0, width / float(height), 0.1, 30.0)
+        gluPerspective(60.0, width / float(height), 0.1, 30.0)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         if not camera:
-            camera = ((10, -5, 0), (30, 0))
+            camera = ((10, -5, 0), (0, 0, 0))
         x, y, z = camera[0]
-        yaw, p = camera[1]
-        glTranslatef(x, y, z)
-        glRotatef(yaw, 0, 1, 0)
-        glRotatef(p, math.cos(math.radians(yaw)), 0, math.sin(math.radians(yaw)))
-#        glPolygonMode(GL_FRONT, GL_FILL)
+        tx, ty, tz = camera[1]
+        gluLookAt(x, y, z, tx, ty, tz, 0, 1, 0)
         self.batch.draw()
 
     def render(self, camera=None):
@@ -147,7 +134,140 @@ class Renderer(Window):
 #            yaw = entity.rotation[0]
 #            obj.rotate(yaw, 0, 1, 0)
 
+    def update_entities(self, entities):
+        for e in entities:
+            self.update_entity(e)
 
+##############################################################################
+# rectanguloids...
+############################################################################
+
+
+class Cube:
+    def __init__(self, color=(.9, .9, .9, 1.0), center=(0,0,0), radius=.5):
+        """
+        color is an r,g,b,a tuple
+        center is an (x, y, z) tuple
+        radius is a float giving distance from center to nearest point on a face
+        """
+        self.color = color
+        self.center = center
+        self.radius = radius
+        self.shifter = [center[0], center[1], center[2]]
+        self.material = Material("cube_surface", shifter=self.shifter)
+        self.material.diffuse = list(color[:3])
+        self.material.opacity = color[3]
+
+    def translate(self, x, y, z):
+        v = self.shifter
+        v[0] = x
+        v[1] = y
+        v[2] = z
+
+    def _vertices(self):
+        r = self.radius
+        return [
+            -r,+r,-r, -r,+r,+r, +r,+r,+r, +r,+r,-r,  # top
+            -r,-r,-r, +r,-r,-r, +r,-r,+r, -r,-r,+r,  # bottom
+            -r,-r,-r, -r,-r,+r, -r,+r,+r, -r,+r,-r,  # left
+            +r,-r,+r, +r,-r,-r, +r,+r,-r, +r,+r,+r,  # right
+            -r,-r,+r, +r,-r,+r, +r,+r,+r, -r,+r,+r,  # front
+            +r,-r,-r, -r,-r,-r, -r,+r,-r, +r,+r,-r,  # back
+        ]
+
+    def _normals(self):
+        return [
+            0, 1,0, 0, 1,0, 0, 1,0, 0, 1,0, # top
+            0,-1,0, 0,-1,0, 0,-1,0, 0,-1,0, # bottom
+            -1,0,0, -1,0,0, -1,0,0, -1,0,0, # left
+            1,0,0,  1,0,0,  1,0,0,  1,0,0, # right
+            0,0, 1, 0,0, 1, 0,0, 1, 0,0, 1, # front
+            0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1, # back
+        ]
+
+    def add_to(self, batch):
+        b = batch.add(24, GL_QUADS, self.material,
+            ('v3f/static', self._vertices()),
+            ('n3f/static', self._normals()),
+        )
+        return b
+
+class Square:
+    def __init__(self, color=(.9, .9, .9, 1.0), center=(0,0,0), radius=.5):
+        """
+        color is an r,g,b,a tuple
+        center is an (x, y, z) tuple
+        radius is a float giving distance from center to nearest point on a face
+        """
+        self.color = color
+        self.center = center
+        self.radius = radius
+        self.shifter = [center[0], center[1], center[2]]
+        self.material = Material("square_surface", shifter=self.shifter)
+        self.material.diffuse = list(color[:3])
+        self.material.opacity = color[3]
+
+    def translate(self, x, y, z):
+        v = self.shifter
+        v[0] = x
+        v[1] = y
+        v[2] = z
+
+    def _vertices(self):
+        r = self.radius
+        return [
+            -r,+r,-r, -r,+r,+r, +r,+r,+r, +r,+r,-r,  # top
+        ]
+
+    def _normals(self):
+        return [
+            0, 1,0, 0, 1,0, 0, 1,0, 0, 1,0, # top
+        ]
+
+    def add_to(self, batch):
+        b = batch.add(4, GL_QUADS, self.material,
+            ('v3f/static', self._vertices()),
+            ('n3f/static', self._normals()),
+        )
+        return b
+    
+class Axes:
+    def __init__(self, n=10):
+        N = 2*n + 1
+        self.cubes = []
+        for i in range(3):
+            for j in range(-n, n):
+                if j != 0:
+                    color = [0, 0, 0, 1.0]
+                    color[i] = (j + n)/N
+                    center = [0, 0, 0]
+                    center[i] = j
+                    self.cubes.append(Cube(color=color, center=center, radius=.5))
+    def add_to(self, batch):
+        for c in self.cubes:
+            c.add_to(batch)
+
+class Checker:
+    def __init__(self, color=(.8, .8, .8, 1.0), center=(0,0,0), radius=5, tile_radius=.5):
+        self.cubes = []
+        N = 2*radius + 1
+        for i in range(N):
+            for j in range(N):
+                c = list(color)
+                if (i+j) % 2 == 0:
+                    for s in range(3):
+                        c[s] = max(c[s] + .1, 1.0)
+                cube_center = list(center)
+                cube_center[0] = 2*tile_radius*(i - radius)
+                cube_center[2] = 2*tile_radius*(j - radius)
+                self.cubes.append(Cube(color=c, center=cube_center, radius=tile_radius))
+                    
+    def add_to(self, batch):
+        for c in self.cubes:
+            c.add_to(batch)
+                
+        
+    
 ########################################################################
 # .obj loaders etc.:
 # Wavefront OBJ renderer using pyglet's Batch class.
@@ -155,6 +275,7 @@ class Renderer(Window):
 # Based on pyglet/contrib/model/model/obj.py
 # and on the code of 
 # Juan J. Martinez <jjm@usebox.net>
+# from https://github.com/reidrac/pyglet-obj-batch/blob/master/obj_batch.py
 ##########################################################################
 
 class Material(graphics.Group):
@@ -193,9 +314,10 @@ class MaterialGroup(object):
     def __init__(self, material):
         self.material = material
 
-        # Interleaved array of floats in GL_T2F_N3F_V3F format
+        # Interleaved array of floats in GL_N3F_V3F format
         self.vertices = []
         self.normals = []
+        # not currently adding textures to batches!!!!
         self.tex_coords = []
         self.array = None
 
@@ -211,30 +333,20 @@ class OBJ(object):
         self.meshes = {}        # Name mapping
         self.mesh_list = []     # Also includes anonymous meshes
 
-        self.transforms = euclid.Matrix4.new_identity()
-        self.normalize = False
-
         self._load_file(filename)
-
-
-    def load_identity(self):
-        '''Discard any transformation'''
-        self.transforms.identity()
-        self.normalize = False
-
+        
     def translate(self, x, y, z):
         for k, v in self.material_tforms.items():
             v[0] = x
             v[1] = y
             v[2] = z
-
 #
 #    def rotate(self, angle, x, y, z):
 #        self.transforms.rotate_axis(math.pi*angle/180.0, euclid.Vector3(x, y, z))
-
-    def scale(self, x, y, z):
-        self.transforms.scale(x, y, z)
-        self.normalize = True
+#
+#    def scale(self, x, y, z):
+#        self.transforms.scale(x, y, z)
+#        self.normalize = True
 
     def add_to(self, batch):
         '''
@@ -254,7 +366,8 @@ class OBJ(object):
                 M.append(group.material)
         X = np.concatenate(V)
         X = X - X.mean(0)
-        X = X/max(X.max(0) - X.min(0))
+        D = max(X.max(0) - X.min(0))/2
+        X = X/D
         N = np.concatenate(N)
         N = N/np.linalg.norm(N, 2, 1).reshape(-1,1)
         count = 0
@@ -267,25 +380,6 @@ class OBJ(object):
                       ('n3f/static', tuple(normals)),
                 )
             count = count + n
-        
-#        for mesh in self.mesh_list:
-#            for group in mesh.groups:
-#                vertices = []
-#                normals = []
-#                for index in range(0, len(group.vertices), 3):
-#                    tv = self.transforms * euclid.Point3(group.vertices[index], group.vertices[index+1], group.vertices[index+2])
-#                    vertices.extend(tv[:])
-#                    tn = self.transforms * euclid.Point3(group.normals[index], group.normals[index+1], group.normals[index+2])
-#                    if self.normalize:
-#                        tn = tn.normalized()
-#                    normals.extend(tn[:])
-#                n = len(vertices)//3
-#                b = batch.add(n, GL_TRIANGLES, group.material,
-#                          ('v3f/static', tuple(vertices)),
-#                          ('n3f/static', tuple(normals)),
-#                )
-#                V.append(b)
-#        return V
 
     def open_material_file(self, filename):
         '''Override for loading from archive/network etc.'''
@@ -430,39 +524,19 @@ if __name__ == "__main__":
     import visdom
     vis = visdom.Visdom()
     agent = Agent(sustain=False, asset_name=None, agent_fpv=False)
-    r = Renderer(agent, width=128, height=128, resizable=False)
-    setup()
+    r = Renderer(agent, width=256, height=256, resizable=False)
     E2 = Entity(asset_name="Zebra")
-
-#    r.add_entity(E)
-
-#    E2 = Entity(asset_name="Cow")
-#    E.move(-8, -2, 0)
+    E = Entity(asset_name="Pig")
+    r.add_entity(E)
     r.add_entity(E2)
-#    r.update_entity(E)
-    def image_xyzyp(r, x, y, z, yaw, p):
-        im = r.render(camera=((x,y,z), (yaw, p)))
+    def image_xyz(r, xyz=(3, 0, 3), txyz=(0,0,0)):
+        im = r.render(camera=(xyz, txyz))
         vis.image(im.transpose((2, 0, 1)))
 
-    image_xyzyp(r, 0, 3, -4, 40, -30)
-    E2.move(0, 0, -5)
-    image_xyzyp(r, 0, 3, -4, 40, -30)
-    r.update_entity(E2)
-    image_xyzyp(r, 0, 3, -4, 40, -30)
-
-#    E.move(8, -2, 0)
     for i in range(9):
-#        E.move(8+i, -2, 0)
-        E2.move(0, 0, i-5)
-#        E.rotate(40*i, 0)
-#        r.update_entity(E)
-        r.update_entity(E2)
-        image_xyzyp(r, 0, 1, 0, 40, -30)
-#        image_xyzyp(r, 0, 3, -8, 40, -30)
-#        image_xyzyp(r, 0, -5, -8, i*40, 30)
-#    for i in range(5):
-#        image_xyzyp(r, 0, 0, 0, -90, 50 - 10*i)
-#    for i in range(10):
-#        image_xyzyp(r, 0, i-5, 0, -90, 0)
-
-    
+        E.move(i-5, 1, 0)
+        E2.move(i, 1, i-5)
+        r.update_entities([E, E2])
+#            r.update_entity(E2)
+#            image_xyzyp(r, 0, 3, -8, 40*j, -40 + 10*i)
+        image_xyz(r, (4, 4, -8), (0,0,0))
