@@ -366,7 +366,9 @@ class OBJ(object):
                 M.append(group.material)
         X = np.concatenate(V)
         X = X - X.mean(0)
-        D = max(X.max(0) - X.min(0))/2
+        diams = X.max(0) - X.min(0)
+        diams[1] = 0 # we don't want to squish if the height is large
+        D = max(diams)/2 #/2 so object is a little bigger than a tile
         X = X/D
         N = np.concatenate(N)
         N = N/np.linalg.norm(N, 2, 1).reshape(-1,1)
@@ -525,8 +527,8 @@ if __name__ == "__main__":
     vis = visdom.Visdom()
     agent = Agent(sustain=False, asset_name=None, agent_fpv=False)
     r = Renderer(agent, width=256, height=256, resizable=False)
-    E2 = Entity(asset_name="Zebra")
-    E = Entity(asset_name="Pig")
+    E2 = Entity(asset_name="Snake")
+    E = Entity(asset_name="Robot")
     r.add_entity(E)
     r.add_entity(E2)
     def image_xyz(r, xyz=(3, 0, 3), txyz=(0,0,0)):
