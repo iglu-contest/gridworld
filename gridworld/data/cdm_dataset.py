@@ -47,11 +47,11 @@ class CDMDataset:
     block_map = {
         'air': 0,
         'cwc_minecraft_blue_rn': 1,
-        'cwc_minecraft_yellow_rn': 2,
-        'cwc_minecraft_green_rn': 3,
+        'cwc_minecraft_green_rn': 2,
+        'cwc_minecraft_red_rn': 3,
         'cwc_minecraft_orange_rn': 4,
         'cwc_minecraft_purple_rn': 5,
-        'cwc_minecraft_red_rn': 6,
+        'cwc_minecraft_yellow_rn': 6,
     }
     def __init__(self, dataset_version="v0.1.0-rc1", task_kwargs=None, force_download=False):
         """
