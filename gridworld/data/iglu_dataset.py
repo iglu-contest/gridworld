@@ -533,7 +533,10 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 utterances, initial_world_blocks, target_world_blocks,
                 last_instruction=last_instruction)
 
-            self.tasks[row.InitializedWorldStructureId].append(task)
+            # e.g. initial_world_states\builder-data/8-c92/step-4 -> 8-c92/step-4 
+            task_id, step_id = row.InitializedWorldPath.split("/")[-2:]
+            #self.tasks[row.InitializedWorldStructureId].append(task)
+            self.tasks[f"{task_id}/{step_id}"].append(task)
         if empty_target_grids > 0:
             print(f'Warning: {empty_target_grids} empty games skipped')
 
@@ -544,4 +547,3 @@ class SingleTurnIGLUDataset(IGLUDataset):
 
     def __len__(self):
         return len(sum(self.tasks.values(), []))
-        
