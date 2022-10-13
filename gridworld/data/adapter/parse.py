@@ -13,11 +13,12 @@ from .common import DEFAULT_POS, VWEvent, \
     AIR_TYPE, VOXELWORLD_GROUND_LEVEL, NORTH_YAW, GameSession
 import numpy as np
 
-from ..iglu_dataset import block_colour_map, fix_xyz, fix_log
+from ..iglu_dataset import IGLUDataset, SingleTurnIGLUDataset, fix_xyz, fix_log
 from ...utils import BUILD_ZONE_SIZE
 
+
 class ActionsParser:
-    def __init__(self, world=None, agent=None, hits_table=None):
+    def __init__(self, world=None, agent=None, hits_table=None, single_turn=False):
         if world is None or agent is None:
             from gridworld.core import World, Agent
             world = World()
@@ -37,6 +38,7 @@ class ActionsParser:
 
         self.data_sequence = []
         self.global_vw_step = 0
+        self.block_map = SingleTurnIGLUDataset.BLOCK_MAP if single_turn else IGLUDataset.BLOCK_MAP
 
     def reset(self):
         self.camera = np.array([0., 0.]) # pitch yaw
@@ -133,7 +135,7 @@ class ActionsParser:
             block, prev = self.world.hit_test(self.agent.position, vector, max_distance=10)
             bid, x, y, z = list(map(int, args[:4]))
             y -= VOXELWORLD_GROUND_LEVEL + 1
-            bid = block_colour_map.get(bid, 1)
+            bid = self.block_map[bid]
             new_block = (x, y, z, bid)
             gridUpdate = [new_block]
         else:
@@ -176,7 +178,7 @@ class ActionsParser:
         start_position = (x, y, z, pitch, yaw)
 
         initial_blocks = [
-            (x, y - VOXELWORLD_GROUND_LEVEL - 1, z, block_colour_map.get(bid, 1)) # TODO: block has
+            (x, y - VOXELWORLD_GROUND_LEVEL - 1, z, self.block_map[bid]
             for (x, y, z, bid) in data['worldEndingState']['blocks']
         ]
         return start_position, initial_blocks
@@ -290,8 +292,7 @@ class ActionsParser:
                 block[1] -= VOXELWORLD_GROUND_LEVEL + 1
                 # block[2] += 5
                 block[0], block[1] = block[1], block[0]
-                # TODO: check for block[3] not in block_colour_map
-                block[3] = block_colour_map.get(block[3], 1)
+                block[3] = self.block_map[block[3]]
                 target_blocks.append(block)
         game_session.target =  target_blocks
         key_name = re.search(r'game-\d+', session).group()
@@ -342,8 +343,7 @@ class ActionsParser:
                 block[1] -= VOXELWORLD_GROUND_LEVEL + 1
                 block[2] += 5
                 block[0], block[1] = block[1], block[0]
-                # TODO: check for block[3] not in block_colour_map
-                block[3] = block_colour_map.get(block[3], 1)
+                block[3] = self.block_map[block[3]]
                 target_blocks.append(np.array(block[:3]))
                 target_block_ids.append(block[3])
         target = np.zeros(BUILD_ZONE_SIZE, dtype=np.int)

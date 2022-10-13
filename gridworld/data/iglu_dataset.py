@@ -19,17 +19,6 @@ from tqdm import tqdm
 
 VOXELWORLD_GROUND_LEVEL = 63
 
-block_colour_map = {
-    # voxelworld's colour id : iglu colour id
-    0: 0,  # air
-    57: 1,  # blue
-    50: 6,  # yellow
-    59: 2,  # green
-    47: 4,  # orange
-    56: 5,  # purple
-    60: 3  # red
-}
-
 
 def fix_xyz(x, y, z):
     XMAX = 11
@@ -98,6 +87,15 @@ class IGLUDataset(Tasks):
         )
     }  # Dictionary holding dataset version to dataset URI mapping
     DIALOGS_FILENAME = 'dialogs.csv'
+    BLOCK_MAP = {  # voxelworld's colour id : iglu colour id
+        00: 0,  # air
+        57: 1,  # blue
+        50: 6,  # yellow
+        59: 2,  # green
+        47: 4,  # orange
+        56: 5,  # purple
+        60: 3,  # red
+    }
 
     def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None, force_download=False) -> None:
         """
@@ -225,7 +223,7 @@ class IGLUDataset(Tasks):
         """Adjust block coordinates and replace id."""
         x, y, z, bid = block
         y = y - VOXELWORLD_GROUND_LEVEL - 1
-        bid = block_colour_map.get(bid, 5) # TODO: some blocks have id 1, check why
+        bid = cls.BLOCK_MAP[bid]
         return x, y, z, bid
 
     def parse_tasks(self, dialogs, path):
@@ -342,10 +340,31 @@ class SingleTurnIGLUDataset(IGLUDataset):
         "v0.1.0-rc2": (
             'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip',
             'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_single_turn_dataset.tar.bz2'
+        ),
+        "v0.1.0-rc3": (
+            'https://iglumturkstorage.blob.core.windows.net/public-data/single_turn_dataset.zip',
+            'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_single_turn_dataset.rc3.tar.bz2'
         )
     }
-
-    def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None,
+    BLOCK_MAP = {  
+        # voxelworld's colour id : iglu colour id
+        00: 0,  # air
+        57: 1,  # blue
+        50: 6,  # yellow
+        59: 2,  # green
+        47: 4,  # orange
+        56: 5,  # purple
+        60: 3,  # red
+        # voxelworld (freeze version)'s colour id : iglu colour id
+        86: 1,  # blue
+        87: 6,  # yellow
+        88: 2,  # green
+        89: 4,  # orange
+        90: 5,  # purple
+        91: 3,  # red
+    }
+    
+    def __init__(self, dataset_version='v0.1.0-rc3', task_kwargs=None,
             force_download=False, limit=None) -> None:
         self.limit = limit
         super().__init__(dataset_version=dataset_version,
@@ -489,41 +508,68 @@ class SingleTurnIGLUDataset(IGLUDataset):
             .apply(lambda x: x.replace('\\', os.path.sep))
         dialogs['InitializedWorldPath'] = dialogs['InitializedWorldPath'] \
             .apply(lambda x: x.replace('/', os.path.sep))
+
+        # Get the list of games for which the instructions were clear.
+        turns = dialogs[dialogs.GameId.str.match("CQ-*")]
+
+        # Util function to read structure from disk.
+        def _load_structure(structure_path):
+            filepath = os.path.join(path, structure_path)
+            if not os.path.exists(filepath):
+                return None
+
+            with open(filepath) as structure_file:
+                structure_data = json.load(structure_file)
+                blocks = structure_data['worldEndingState']['blocks']
+                structure = [self.transform_block(block) for block in blocks]
+
+            return structure
+
         multiturn_dialogs = self.get_multiturn_dialogs(path)
-        empty_target_grids = 0
-        for _, row in tqdm(dialogs.iterrows(), total=len(dialogs), desc='parsing dataset'):
+
+        tasks_count = 0
+        pbar = tqdm(turns.iterrows(), total=len(turns), desc='parsing dataset')
+        for _, row in pbar:
+            pbar.set_postfix_str(f"{tasks_count} tasks") 
             assert row.InitializedWorldStructureId is not None
+
             # Read initial structure
-            initial_world_path = os.path.join(path, row.InitializedWorldPath)
-            if not os.path.exists(initial_world_path):
-                print(f'File {initial_world_path} not found')
-                continue
-            with open(initial_world_path, 'r') as initial_file:
-                initial_step = json.load(initial_file)
-            initial_world_blocks = [
-                self.transform_block(block)
-                for block in initial_step['worldEndingState']['blocks']
-            ]
-
-            # Read target structure
-            target_world_filepath = os.path.join(
-                path, row.TargetWorldPath)
-            if not os.path.exists(target_world_filepath):
-                print(f'Target file for game {row.GameId} not found',
-                      row.TargetWorldPath)
-                continue
-            with open(target_world_filepath, 'r') as target_file:
-                target_step = json.load(target_file)
-            target_world_blocks = [
-                self.transform_block(block)
-                for block in target_step['worldEndingState']['blocks']
-            ]
-            if len(target_world_blocks) == 0:
-                empty_target_grids += 1
+            initial_world_blocks = _load_structure(row.InitializedWorldPath)
+            if initial_world_blocks is None:
+                pbar.write(f"Skipping '{row.GameId}'. Can't load starting structure from '{row.InitializedWorldPath}'.")
                 continue
 
-            last_instruction = '<Architect> ' + self.process(
-                row.InputInstruction)
+            target_world_blocks = _load_structure(row.TargetWorldPath)
+            if target_world_blocks is None:
+                pbar.write(f"Skipping '{row.GameId}'. Can't load target structure from '{row.TargetWorldPath}'.")
+                continue
+            
+            # Check if target structure matches the initial structure.
+            if sorted(initial_world_blocks) == sorted(target_world_blocks):
+                pbar.write(f"Skipping '{row.GameId}'. Target structure is the same as the initial one.")
+                continue
+
+            # Get the original game.
+            orig = dialogs[dialogs.GameId == row.GameId[len("CQ-"):]]
+            if len(orig) == 0:
+                pbar.write(f"Skipping '{row.GameId}'. Can't find its original game '{row.GameId[len('CQ-'):]}'.")
+                continue
+
+            assert len(orig) == 1
+            orig = orig.iloc[0]
+            
+            # Load original structure.
+            orig_target_world_blocks = _load_structure(orig.TargetWorldPath)
+            if orig_target_world_blocks is None:
+                pbar.write(f"Skipping '{row.GameId}'. Can't load original target structure from '{orig.TargetWorldPath}'.")
+                continue
+           
+            # Check if original structure matches the rebuilt one.
+            if sorted(orig_target_world_blocks) != sorted(target_world_blocks):
+                pbar.write(f"Skipping '{row.GameId}'. Target structure doesn't match the one in '{orig.GameId}'.")
+                continue
+
+            last_instruction = '<Architect> ' + self.process(row.InputInstruction)
             # Read utterances
             utterances = self.get_previous_dialogs(row, multiturn_dialogs)
             utterances.append(last_instruction)
@@ -537,8 +583,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
             task_id, step_id = row.InitializedWorldPath.split("/")[-2:]
             #self.tasks[row.InitializedWorldStructureId].append(task)
             self.tasks[f"{task_id}/{step_id}"].append(task)
-        if empty_target_grids > 0:
-            print(f'Warning: {empty_target_grids} empty games skipped')
+            tasks_count += 1
 
     def __iter__(self):
         for task_id, tasks in self.tasks.items():
