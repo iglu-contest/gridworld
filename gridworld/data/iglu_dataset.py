@@ -99,7 +99,8 @@ class IGLUDataset(Tasks):
     }  # Dictionary holding dataset version to dataset URI mapping
     DIALOGS_FILENAME = 'dialogs.csv'
 
-    def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None, force_download=False) -> None:
+    def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None,
+                 force_download=False, force_parsing=False) -> None:
         """
         Collaborative dataset for the IGLU competition.
 
@@ -110,6 +111,7 @@ class IGLUDataset(Tasks):
             dataset_version: Which dataset version to use.
             task_kwargs: Task-class specific kwargs. For reference see gridworld.task.Task class
             force_download: Whether to force dataset downloading
+            force_download: Whether to force downloading the unparsed dataset.
         """
         self.dataset_version = dataset_version
         if dataset_version not in self.DATASET_URL.keys():
@@ -126,7 +128,7 @@ class IGLUDataset(Tasks):
         if custom:
             filename = f'cached_{filename}'
         parse = False
-        if not custom:
+        if not custom and not force_parsing:
             try:
                 # first, try downloading the lightweight parsed dataset
                 self.download_parsed(data_path=data_path, file_name=filename, force_download=force_download)
@@ -134,7 +136,7 @@ class IGLUDataset(Tasks):
             except Exception as e:
                 print(e)
                 parse = True
-        if custom or parse:
+        if custom or parse or force_parsing:
             print('Loading parsed dataset failed. Downloading full dataset.')
             # if it fails, download it manually and cache it
             self.download_dataset(data_path, force_download)
@@ -346,10 +348,11 @@ class SingleTurnIGLUDataset(IGLUDataset):
     }
 
     def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None,
-            force_download=False, limit=None) -> None:
+            force_download=False, force_parsing=False, limit=None) -> None:
         self.limit = limit
+        self.mturn_data_path = None
         super().__init__(dataset_version=dataset_version,
-            task_kwargs=task_kwargs, force_download=force_download)
+            task_kwargs=task_kwargs, force_download=force_download, force_parsing=force_parsing)
 
     def get_instructions(self, data_path):
         single_turn_df = pd.read_csv(os.path.join(
@@ -416,6 +419,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
             last_instruction=last_instruction
         )
         # To properly init max_int and prev_grid_size fields
+        task.mturn_data_path = self.mturn_data_path
         task.reset()
         return task
 
@@ -423,6 +427,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
         # Filter multiturn rows with this game id and previous to step
         utterances = []
         mturn_data_path = single_turn_row.InitializedWorldPath.split('/')[-2:]
+        self.mturn_data_path = mturn_data_path
         if len(mturn_data_path) != 2 or '-' not in mturn_data_path[1]:
             print(f"Error with initial data path {single_turn_row.InitializedWorldPath}."
                   "Could not parse data path to get previous dialogs.")
@@ -533,7 +538,9 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 utterances, initial_world_blocks, target_world_blocks,
                 last_instruction=last_instruction)
 
-            # e.g. initial_world_states\builder-data/8-c92/step-4 -> 8-c92/step-4 
+            # e.g. initial_world_states\builder-data/8-c92/step-4 -> 8-c92/step-4
+            if 'cq' in row.InitializedWorldPath:
+                import ipdb; ipdb.set_trace()
             task_id, step_id = row.InitializedWorldPath.split("/")[-2:]
             #self.tasks[row.InitializedWorldStructureId].append(task)
             self.tasks[f"{task_id}/{step_id}"].append(task)
