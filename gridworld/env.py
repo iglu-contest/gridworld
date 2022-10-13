@@ -216,6 +216,15 @@ class GridWorld(Env):
             self._task = self._task_generator.reset()
         self.step_no = 0
         self._task.reset()
+
+        self._synthetic_init_grid = Tasks.to_dense(self._task.starting_grid)
+        self._synthetic_task = Task(
+            # create a synthetic task with only diff blocks. 
+            # blocks to remove have negative ids.
+            '', target_grid=self._task.target_grid - self._synthetic_init_grid
+        )
+        self._synthetic_task.reset()
+
         if self._overwrite_starting_grid is not None:
             self.starting_grid = self._overwrite_starting_grid
         else:
@@ -275,8 +284,9 @@ class GridWorld(Env):
         obs['dialog'] = self._task.chat
         if self.vector_state:
             obs['grid'] = self.grid.copy().astype(np.int32)
-            obs['agentPos'] = np.array([x, y, z, pitch, yaw], dtype=np.float32)
-        right_placement, wrong_placement, done = self._task.step_intersection(self.grid)
+            obs['agentPos'] = np.array([x, y, z, pitch, yaw], dtype=np.float32)    
+        synthetic_grid = self.grid - self._synthetic_init_grid
+        right_placement, wrong_placement, done = self._synthetic_task.step_intersection(synthetic_grid)
         done = done or (self.step_no == self.max_steps)
         if right_placement == 0:
             reward = wrong_placement * self.wrong_placement_scale
