@@ -126,7 +126,7 @@ def run(
     if not dialogs_path.exists():
         raise ValueError(f'make sure the hits table is present under {dialogs_path}')
     adapter = ActionsAdapter()
-    parser = ActionsParser(hits_table=dialogs_path)
+    parser = ActionsParser(hits_table=dialogs_path, single_turn=single_turn)
     if 'builder-data' not in str(path):
         path = path / 'builder-data'
     if not path.exists():

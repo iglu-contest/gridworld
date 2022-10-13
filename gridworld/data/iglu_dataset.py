@@ -19,17 +19,6 @@ from tqdm import tqdm
 
 VOXELWORLD_GROUND_LEVEL = 63
 
-block_colour_map = {
-    # voxelworld's colour id : iglu colour id
-    0: 0,  # air
-    57: 1,  # blue
-    50: 6,  # yellow
-    59: 2,  # green
-    47: 4,  # orange
-    56: 5,  # purple
-    60: 3  # red
-}
-
 
 def fix_xyz(x, y, z):
     XMAX = 11
@@ -98,6 +87,15 @@ class IGLUDataset(Tasks):
         )
     }  # Dictionary holding dataset version to dataset URI mapping
     DIALOGS_FILENAME = 'dialogs.csv'
+    BLOCK_MAP = {  # voxelworld's colour id : iglu colour id
+        00: 0,  # air
+        57: 1,  # blue
+        50: 6,  # yellow
+        59: 2,  # green
+        47: 4,  # orange
+        56: 5,  # purple
+        60: 3,  # red
+    }
 
     def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None, force_download=False) -> None:
         """
@@ -225,7 +223,7 @@ class IGLUDataset(Tasks):
         """Adjust block coordinates and replace id."""
         x, y, z, bid = block
         y = y - VOXELWORLD_GROUND_LEVEL - 1
-        bid = block_colour_map.get(bid, 5) # TODO: some blocks have id 1, check why
+        bid = cls.BLOCK_MAP[bid]
         return x, y, z, bid
 
     def parse_tasks(self, dialogs, path):
@@ -344,7 +342,24 @@ class SingleTurnIGLUDataset(IGLUDataset):
             'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_single_turn_dataset.tar.bz2'
         )
     }
-
+    BLOCK_MAP = {  
+        # voxelworld's colour id : iglu colour id
+        00: 0,  # air
+        57: 1,  # blue
+        50: 6,  # yellow
+        59: 2,  # green
+        47: 4,  # orange
+        56: 5,  # purple
+        60: 3,  # red
+        # voxelworld (freeze version)'s colour id : iglu colour id
+        86: 1,  # blue
+        87: 6,  # yellow
+        88: 2,  # green
+        89: 4,  # orange
+        90: 5,  # purple
+        91: 3,  # red
+    }
+    
     def __init__(self, dataset_version='v0.1.0-rc2', task_kwargs=None,
             force_download=False, limit=None) -> None:
         self.limit = limit
