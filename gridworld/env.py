@@ -216,19 +216,21 @@ class GridWorld(Env):
             self._task = self._task_generator.reset()
         self.step_no = 0
         self._task.reset()
-
-        self._synthetic_init_grid = Tasks.to_dense(self._task.starting_grid)
-        self._synthetic_task = Task(
-            # create a synthetic task with only diff blocks. 
-            # blocks to remove have negative ids.
-            '', target_grid=self._task.target_grid - self._synthetic_init_grid
-        )
-        self._synthetic_task.reset()
-
         if self._overwrite_starting_grid is not None:
             self.starting_grid = self._overwrite_starting_grid
         else:
             self.starting_grid = self._task.starting_grid
+        
+        self._synthetic_init_grid = None
+        if self.starting_grid is not None:
+            self._synthetic_init_grid = Tasks.to_dense(self.starting_grid)
+            self._synthetic_task = Task(
+                # create a synthetic task with only diff blocks. 
+                # blocks to remove have negative ids.
+                '', target_grid=self._task.target_grid - self._synthetic_init_grid
+            )
+            self._synthetic_task.reset()
+
         for block in set(self.world.placed):
             self.world.remove_block(block)
         if self.starting_grid is not None:
