@@ -178,7 +178,7 @@ class ActionsParser:
         start_position = (x, y, z, pitch, yaw)
 
         initial_blocks = [
-            (x, y - VOXELWORLD_GROUND_LEVEL - 1, z, self.block_map[bid]
+            (x, y - VOXELWORLD_GROUND_LEVEL - 1, z, self.block_map[bid])
             for (x, y, z, bid) in data['worldEndingState']['blocks']
         ]
         return start_position, initial_blocks
