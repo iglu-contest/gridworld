@@ -12,6 +12,8 @@ import logging
 import gym
 from tqdm import tqdm
 
+from gridworld.data.cdm_dataset import DATA_PREFIX
+
 from .parse import ActionsParser
 from gridworld.data.iglu_dataset import IGLUDataset
 
@@ -136,7 +138,7 @@ def run(
         if len(dirs) == 0: # To handle single-turn
             dirs = list(path.glob('*game-*/'))
     else:
-        dirs = [path / session_id / f'{session_id}-step-action']
+        dirs = [path / session_id ]
     for data_dir in tqdm(dirs):
         if single_turn:
             session_name = data_dir.name
