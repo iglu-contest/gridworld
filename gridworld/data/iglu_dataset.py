@@ -1,4 +1,3 @@
-from ipaddress import ip_address
 import os
 import json
 import re
@@ -6,9 +5,8 @@ import pandas as pd
 import numpy as np
 import pickle
 import bz2
+import itertools
 from collections import defaultdict
-
-from gridworld import data
 
 from ..tasks.task import Subtasks, Task, Tasks
 from .load import download
@@ -20,70 +18,16 @@ from tqdm import tqdm
 VOXELWORLD_GROUND_LEVEL = 63
 
 
-def fix_xyz(x, y, z):
-    XMAX = 11
-    YMAX = 9
-    ZMAX = 11
-    COORD_SHIFT = [5, -63, 5]
-
-    x += COORD_SHIFT[0]
-    y += COORD_SHIFT[1]
-    z += COORD_SHIFT[2]
-
-    index = z + y * YMAX + x * YMAX * ZMAX
-    new_x = index // (YMAX * ZMAX)
-    index %= (YMAX * ZMAX)
-    new_y = index // ZMAX
-    index %= ZMAX
-    new_z = index % ZMAX
-
-    new_x -= COORD_SHIFT[0]
-    new_y -= COORD_SHIFT[1]
-    new_z -= COORD_SHIFT[2]
-
-    return new_x, new_y, new_z
-
-
-def fix_log(log_string):
-    """
-    log_string: str
-        log_string should be a string of the full log.
-        It should be multiple lines, each corresponded to a timestamp,
-        and should be separated by newline character.
-    """
-
-    lines = []
-
-    for line in log_string.splitlines():
-
-        if "block_change" in line:
-            line_splits = line.split(" ", 2)
-            try:
-                info = eval(line_splits[2])
-            except:
-                lines.append(line)
-                continue
-            x, y, z = info[0], info[1], info[2]
-            new_x, new_y, new_z = fix_xyz(x, y, z)
-            new_info = (new_x, new_y, new_z, info[3], info[4])
-            line_splits[2] = str(new_info)
-            fixed_line = " ".join(line_splits)
-            # logging.info(f"Fixed {line} to {fixed_line}")
-
-            lines.append(fixed_line)
-        else:
-            lines.append(line)
-
-    return "\n".join(lines)
-
-
-
 class IGLUDataset(Tasks):
     DATASET_URL = {
         "v0.1.0-rc1": 'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip',
         "v0.1.0-rc2": (
             'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip',
             'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_multi_turn_dataset.tar.bz2'
+        ),
+        "v0.1.0-rc3": (
+            'https://iglumturkstorage.blob.core.windows.net/public-data/iglu_dataset.zip',
+            'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_multi_turn_dataset.rc3.tar.bz2'
         )
     }  # Dictionary holding dataset version to dataset URI mapping
     DIALOGS_FILENAME = 'dialogs.csv'
@@ -97,7 +41,8 @@ class IGLUDataset(Tasks):
         60: 3,  # red
     }
 
-    def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None, force_download=False) -> None:
+    def __init__(self, dataset_version="v0.1.0-rc2", task_kwargs=None,
+                 force_download=False, force_parsing=False) -> None:
         """
         Collaborative dataset for the IGLU competition.
 
@@ -108,6 +53,7 @@ class IGLUDataset(Tasks):
             dataset_version: Which dataset version to use.
             task_kwargs: Task-class specific kwargs. For reference see gridworld.task.Task class
             force_download: Whether to force dataset downloading
+            force_parsing: Whether to ignore cached dataset and force parsing it.
         """
         self.dataset_version = dataset_version
         if dataset_version not in self.DATASET_URL.keys():
@@ -124,7 +70,7 @@ class IGLUDataset(Tasks):
         if custom:
             filename = f'cached_{filename}'
         parse = False
-        if not custom:
+        if not custom and not force_parsing:
             try:
                 # first, try downloading the lightweight parsed dataset
                 self.download_parsed(data_path=data_path, file_name=filename, force_download=force_download)
@@ -132,7 +78,7 @@ class IGLUDataset(Tasks):
             except Exception as e:
                 print(e)
                 parse = True
-        if custom or parse:
+        if custom or parse or force_parsing:
             print('Loading parsed dataset failed. Downloading full dataset.')
             # if it fails, download it manually and cache it
             self.download_dataset(data_path, force_download)
@@ -258,18 +204,24 @@ class IGLUDataset(Tasks):
             # changes to the blocks
             utt_seq = []
             blocks = []
+            block_changes = []
             if not os.path.exists(f'{path}/builder-data/{sess_id}'):
                 continue
+
             # Each session should have a single taskId associated.
             assert len(gr.structureId.unique()) == 1
             structure_id = gr.structureId.values[0]
+
             # Read the utterances and block end positions for each step.
-            for i, row in gr.sort_values('StepId').reset_index(drop=True).iterrows():
+            rows = list(gr.sort_values('StepId').reset_index(drop=True).iterrows())
+            for i, row in rows:
                 if not row.IsHITQualified:
                     continue
                 if row.StepId % 2 == 1:
                     # Architect step
                     if isinstance(row.instruction, str):
+                        blocks.append([])
+                        block_changes.append([])
                         utt_seq.append([])
                         utt_seq[-1].append(
                             f'<Architect> {self.process(row.instruction)}')
@@ -281,8 +233,7 @@ class IGLUDataset(Tasks):
                     if isinstance(row.ClarifyingQuestion, str):
                         utt_seq[-1].append(
                             f'<Builder> {self.process(row.ClarifyingQuestion)}')
-                        continue
-                    blocks.append([])
+
                     curr_step = f'{path}/builder-data/{sess_id}/step-{row.StepId}'
                     if not os.path.exists(curr_step):
                         break
@@ -290,13 +241,68 @@ class IGLUDataset(Tasks):
                         # "reset" so we need to stop parsing this session. Need to check that.
                     with open(curr_step) as f:
                         step_data = json.load(f)
+
+                    blocks[-1] = []
                     for block in step_data['worldEndingState']['blocks']:
                         x, y, z, bid = self.transform_block(block)
                         blocks[-1].append((x, y, z, bid))
+
+                    # Read the tape and look for 'select_and_place_block' and 'break' action events.
+                    lines_with_block_change = [line for line in step_data["tape"].split("\n")
+                                               if "action break" in line or "action select_and_place_block" in line]
+
+                    # Keep track of the grid values while reading block changes.
+                    starting_grid = list(itertools.chain(*blocks[-2:-1]))
+                    grid = {tuple((x,y,z)): bid for x,y,z,bid in starting_grid}
+
+                    # Replay what we have collected so far.
+                    for x, y, z, bid in block_changes[-1]:
+                        grid[tuple((x, y, z))] = bid
+
+                    # Extract block changes.
+                    for line in lines_with_block_change:
+                        if "break" in line:
+                            bid = 0
+                            x, y, z = map(int, line.split("break ")[-1].split()[:3])
+                        elif "select_and_place_block" in line:
+                            bid, x, y, z = map(int, line.split("select_and_place_block ")[-1].split()[:4])
+                        else:
+                            raise NotImplementedError("Should not happen.")
+
+                        y = y - VOXELWORLD_GROUND_LEVEL - 1
+
+                        if bid not in self.BLOCK_MAP:
+                            print(f"**Warning block ID {bid} not found while parsing '{line}'.")
+
+                        bid = self.BLOCK_MAP.get(bid, 3)  # Why?
+
+                        if grid.get(tuple((x, y, z)), 0) == bid:
+                            # Skip redundant block changes. Usually happens during world state recovery at the tape's beginning.
+                            continue
+
+                        grid[tuple((x, y, z))] = bid
+                        block_changes[-1].append((x, y, z, bid))
+
+                    # Make sure we can reconstruct the target grid from the block changes.
+                    assert sorted((cell + (value,)) for cell, value in grid.items() if value) == sorted(blocks[-1])
+
+            # To be considered, a session needs to end without a pending ClarifyingQuestion.
+            if isinstance(rows[i-1][1].ClarifyingQuestion, str):
+                blocks = blocks[:-1]
+                utt_seq = utt_seq[:-1]
+                block_changes = block_changes[:-1]
+
+            if len(blocks) > 1:
+                if len(block_changes[-1]) == 0 and set(blocks[-2]) == set(blocks[-1]):
+                    blocks = blocks[:-1]
+                    utt_seq = utt_seq[:-1]
+                    block_changes = block_changes[:-1]
+
             # Aggregate all previous blocks into each step
             if len(blocks) < len(utt_seq):
                 # handle the case of missing of the last blocks record
                 utt_seq = utt_seq[:len(blocks)]
+
             i = 0
             while i < len(blocks):
                 # Collapse steps where there are no block changes.
@@ -304,15 +310,19 @@ class IGLUDataset(Tasks):
                     if i == len(blocks) - 1:
                         blocks = blocks[:i]
                         utt_seq = utt_seq[:i]
+                        block_changes = block_changes[:i]
                     else:
                         blocks = blocks[:i] + blocks[i + 1:]
                         utt_seq[i] = utt_seq[i] + utt_seq[i + 1]
                         utt_seq = utt_seq[:i + 1] + utt_seq[i + 2:]
+                        block_changes = block_changes[:i] + block_changes[i + 1:]
+
                 else:
                     i += 1
+
             if len(blocks) > 0:
                 # Create random subtasks from the sequence of dialogs and blocks
-                task = Subtasks(utt_seq, blocks, **self.task_kwargs)
+                task = Subtasks(utt_seq, blocks, block_changes, **self.task_kwargs)
                 assert len(utt_seq) == len(blocks)
                 self.tasks[structure_id].append(task)
 
@@ -346,7 +356,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
             'https://iglumturkstorage.blob.core.windows.net/public-data/parsed_tasks_single_turn_dataset.rc3.tar.bz2'
         )
     }
-    BLOCK_MAP = {  
+    BLOCK_MAP = {
         # voxelworld's colour id : iglu colour id
         00: 0,  # air
         57: 1,  # blue
@@ -363,12 +373,12 @@ class SingleTurnIGLUDataset(IGLUDataset):
         90: 5,  # purple
         91: 3,  # red
     }
-    
+
     def __init__(self, dataset_version='v0.1.0-rc3', task_kwargs=None,
-            force_download=False, limit=None) -> None:
+            force_download=False, force_parsing=False, limit=None) -> None:
         self.limit = limit
         super().__init__(dataset_version=dataset_version,
-            task_kwargs=task_kwargs, force_download=force_download)
+            task_kwargs=task_kwargs, force_download=force_download, force_parsing=force_parsing)
 
     def get_instructions(self, data_path):
         single_turn_df = pd.read_csv(os.path.join(
@@ -530,7 +540,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
         tasks_count = 0
         pbar = tqdm(turns.iterrows(), total=len(turns), desc='parsing dataset')
         for _, row in pbar:
-            pbar.set_postfix_str(f"{tasks_count} tasks") 
+            pbar.set_postfix_str(f"{tasks_count} tasks")
             assert row.InitializedWorldStructureId is not None
 
             # Read initial structure
@@ -543,7 +553,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
             if target_world_blocks is None:
                 pbar.write(f"Skipping '{row.GameId}'. Can't load target structure from '{row.TargetWorldPath}'.")
                 continue
-            
+
             # Check if target structure matches the initial structure.
             if sorted(initial_world_blocks) == sorted(target_world_blocks):
                 pbar.write(f"Skipping '{row.GameId}'. Target structure is the same as the initial one.")
@@ -557,13 +567,13 @@ class SingleTurnIGLUDataset(IGLUDataset):
 
             assert len(orig) == 1
             orig = orig.iloc[0]
-            
+
             # Load original structure.
             orig_target_world_blocks = _load_structure(orig.TargetWorldPath)
             if orig_target_world_blocks is None:
                 pbar.write(f"Skipping '{row.GameId}'. Can't load original target structure from '{orig.TargetWorldPath}'.")
                 continue
-           
+
             # Check if original structure matches the rebuilt one.
             if sorted(orig_target_world_blocks) != sorted(target_world_blocks):
                 pbar.write(f"Skipping '{row.GameId}'. Target structure doesn't match the one in '{orig.GameId}'.")
@@ -579,7 +589,7 @@ class SingleTurnIGLUDataset(IGLUDataset):
                 utterances, initial_world_blocks, target_world_blocks,
                 last_instruction=last_instruction)
 
-            # e.g. initial_world_states\builder-data/8-c92/step-4 -> 8-c92/step-4 
+            # e.g. initial_world_states\builder-data/8-c92/step-4 -> 8-c92/step-4
             task_id, step_id = row.InitializedWorldPath.split("/")[-2:]
             #self.tasks[row.InitializedWorldStructureId].append(task)
             self.tasks[f"{task_id}/{step_id}"].append(task)

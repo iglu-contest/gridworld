@@ -13,8 +13,66 @@ from .common import DEFAULT_POS, VWEvent, \
     AIR_TYPE, VOXELWORLD_GROUND_LEVEL, NORTH_YAW, GameSession
 import numpy as np
 
-from ..iglu_dataset import IGLUDataset, SingleTurnIGLUDataset, fix_xyz, fix_log
+from ..iglu_dataset import IGLUDataset, SingleTurnIGLUDataset
 from ...utils import BUILD_ZONE_SIZE
+
+
+
+def fix_xyz(x, y, z):
+    XMAX = 11
+    YMAX = 9
+    ZMAX = 11
+    COORD_SHIFT = [5, -63, 5]
+
+    x += COORD_SHIFT[0]
+    y += COORD_SHIFT[1]
+    z += COORD_SHIFT[2]
+
+    index = z + y * ZMAX + x * YMAX * ZMAX
+    new_x = index // (YMAX * ZMAX)
+    index %= (YMAX * ZMAX)
+    new_y = index // ZMAX
+    index %= ZMAX
+    new_z = index % ZMAX
+
+    new_x -= COORD_SHIFT[0]
+    new_y -= COORD_SHIFT[1]
+    new_z -= COORD_SHIFT[2]
+
+    return new_x, new_y, new_z
+
+
+def fix_log(log_string):
+    """
+    log_string: str
+        log_string should be a string of the full log.
+        It should be multiple lines, each corresponded to a timestamp,
+        and should be separated by newline character.
+    """
+
+    lines = []
+
+    for line in log_string.splitlines():
+
+        if "block_change" in line:
+            line_splits = line.split(" ", 2)
+            try:
+                info = eval(line_splits[2])
+            except:
+                lines.append(line)
+                continue
+            x, y, z = info[0], info[1], info[2]
+            new_x, new_y, new_z = fix_xyz(x, y, z)
+            new_info = (new_x, new_y, new_z, info[3], info[4])
+            line_splits[2] = str(new_info)
+            fixed_line = " ".join(line_splits)
+            # logging.info(f"Fixed {line} to {fixed_line}")
+
+            lines.append(fixed_line)
+        else:
+            lines.append(line)
+
+    return "\n".join(lines)
 
 
 class ActionsParser:
@@ -135,7 +193,7 @@ class ActionsParser:
             block, prev = self.world.hit_test(self.agent.position, vector, max_distance=10)
             bid, x, y, z = list(map(int, args[:4]))
             y -= VOXELWORLD_GROUND_LEVEL + 1
-            bid = self.block_map[bid]
+            bid = self.block_map.get(bid, 3)
             new_block = (x, y, z, bid)
             gridUpdate = [new_block]
         else:

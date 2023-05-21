@@ -6,7 +6,7 @@ BUILD_ZONE_SIZE = 9, 11, 11
 
 
 class Task:
-    def __init__(self, chat, target_grid, last_instruction=None, starting_grid=None, full_grid=None, invariant=True):
+    def __init__(self, chat, target_grid, last_instruction=None, starting_grid=None, full_grid=None, invariant=True, block_changes=None):
         """Creates a new Task represented with the past dialog and grid,
         the new instruction and target grid after completing the instruction.
 
@@ -30,6 +30,7 @@ class Task:
         self.chat = chat
         self.starting_grid = starting_grid
         self.last_instruction = last_instruction
+        self.block_changes = block_changes
         self.full_grid = full_grid
         self.admissible = [[] for _ in range(4)]
         self.target_size = (target_grid != 0).sum().item()
@@ -208,11 +209,12 @@ class Tasks:
 class Subtasks(Tasks):
     """ Subtasks object represents a staged task where subtasks represent separate segments
     """
-    def __init__(self, dialog, structure_seq, invariant=False, progressive=True) -> None:
+    def __init__(self, dialog, structure_seq, block_changes, invariant=False, progressive=True) -> None:
         self.dialog = dialog
         self.invariant = invariant
         self.progressive = progressive
         self.structure_seq = structure_seq
+        self.block_changes = block_changes
         self.next = None
         self.full = False
         self.task_start = 0
@@ -279,7 +281,8 @@ class Subtasks(Tasks):
             dialog, target_grid=self.to_dense(target_grid),
             starting_grid=self.to_sparse(initial_blocks),
             full_grid=self.full_structure,
-            last_instruction='\n'.join(self.dialog[tid])
+            last_instruction='\n'.join(self.dialog[tid]),
+            block_changes=self.block_changes[tid] if hasattr(self, "block_changes") else [],
         )
         # To properly init max_int and prev_grid_size fields
         task.reset()
