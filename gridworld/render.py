@@ -22,6 +22,8 @@ import time
 import platform
 from PIL import Image
 import gridworld
+from pathlib import Path
+import sys
 
 from .utils import WHITE, GREY, cube_vertices, cube_normals, id2texture, id2top_texture
 
@@ -62,7 +64,8 @@ class Renderer(Window):
         self.batch = Batch()
         dir_path = os.path.dirname(gridworld.__file__)
         TEXTURE_PATH = os.path.join(dir_path, Renderer.TEXTURE_PATH)
-        with FileLock(f'/tmp/mylock'):
+
+        with FileLock(self._get_log_path()):
             self.texture_group = TextureGroup(image.load(TEXTURE_PATH).get_texture())
         self.overlay = False
         self._shown = {}
@@ -76,6 +79,17 @@ class Renderer(Window):
         if not pyglet.options['headless']:
             app.platform_event_loop.start()
             self.dispatch_event('on_enter')
+
+    @staticmethod
+    def _get_log_path():
+        path = Path(sys.executable)
+        root_dir = os.path.join(path.root or path.drive, 'temp')
+        if not os.path.isdir(root_dir):
+            os.makedirs(root_dir)
+
+        filepath = os.path.join(root_dir, 'mylock')
+        Path(filepath).touch(exist_ok=True)
+        return filepath
 
     def set_2d(self):
         """ Configure OpenGL to draw in 2d.

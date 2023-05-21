@@ -1,7 +1,8 @@
+import os
 import sys
 
-from gridworld.examples.dataset_iterator import DATASET_VERSION
 sys.path.insert(0, '../')
+
 from gridworld import GridWorld
 from gridworld.data.iglu_dataset import IGLUDataset
 from gridworld.tasks import DUMMY_TASK
@@ -9,13 +10,14 @@ from tqdm import tqdm
 from PIL import Image
 from PIL import ImageDraw, ImageFont
 import numpy as np
-import os
 import pickle
 import math
 import textwrap
 import cv2
 import gym
 render_size = (640, 640)
+
+os.environ['IGLU_HEADLESS'] = '0'
 
 rendered_texts = {}
 def put_multiline_text(lines, height, width, text_frac=0.6):
@@ -26,7 +28,7 @@ def put_multiline_text(lines, height, width, text_frac=0.6):
         canvas = np.ones((height, width, 3), dtype=np.uint8) * 255
         canvas = Image.fromarray(canvas)
         draw = ImageDraw.Draw(canvas)
-        fnt = ImageFont.truetype("FreeMono.ttf", 18)
+        fnt = ImageFont.truetype("arial.ttf", 18)
         char_width = np.mean([fnt.getsize(char)[0] for char in set(' '.join([l for l in lines if l is not None]))])
         chars = int(0.9 * canvas.size[0] / char_width)
         text = []
@@ -47,8 +49,6 @@ DATASET_VERSION = "v0.1.0-rc1"
 tasks = IGLUDataset(dataset_version=DATASET_VERSION)
 # env.set_task_generator(None)
 env.set_task(DUMMY_TASK)
-obs = env.reset()
-img = env.unwrapped.render()
 os.makedirs('task_renders', exist_ok=True)
 SIZE = 512
 sqrt2 = np.sqrt(2)
