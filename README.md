@@ -281,6 +281,17 @@ builder-data/
 Here, `dialog.csv` contains the utterances of architects and builders solving different tasks in 
 different sessions. The `builder-data/` directory contains builder behavior recorded by the voxel.js engine. Right now we extract only the resulting grids and use them as targets.
 
+## References
+
+```
+@article{zholus2022iglu,
+  title={IGLU Gridworld: Simple and Fast Environment for Embodied Dialog Agents},
+  author={Zholus, Artem and Skrynnik, Alexey and Mohanty, Shrestha and Volovikova, Zoya and Kiseleva, Julia and Szlam, Artur and Cot{\'e}, Marc-Alexandre and Panov, Aleksandr I},
+  journal={arXiv preprint arXiv:2206.00142},
+  year={2022}
+}
+```
+
 ## Known Issues
 
 ### How to fix the `pyglet.gl.ContextException: Could not create GL context` problem?
