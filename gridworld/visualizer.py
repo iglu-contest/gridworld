@@ -80,8 +80,8 @@ class Visualizer:
             self.set_agent_state(*init_conds)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         output.parent.mkdir(exist_ok=True)
-        writer = cv2.VideoWriter(f'{output}.mp4', fourcc, fps, self.render_size)
         image = self.render()
+        writer = cv2.VideoWriter(f'{output}.mp4', fourcc, fps, image.shape[:2])
         writer.write(image[..., ::-1])
         tq = tqdm(total=len(event_sequence), disable=not verbose)
         for _, event in enumerate(event_sequence):
